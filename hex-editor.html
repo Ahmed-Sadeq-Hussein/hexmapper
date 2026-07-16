@@ -1,0 +1,936 @@
+
+<title>Falldin hexmapper — Map Editor</title>
+<style>
+:root{--bg:#0E1720;--surface:#162030;--surface2:#1D2C40;--border:#273D58;--ink:#CFC5A8;--ink-dim:#7A8FA0;--gold:#C9A84C;--radius:5px;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:Georgia,'Times New Roman',serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;padding:0.7rem 1.1rem;border-bottom:1px solid var(--border);background:var(--surface);}
+.topbar h1{font-size:1.1rem;font-weight:normal;}.topbar h1 em{color:var(--gold);font-style:italic;}
+.topbar .spacer{flex:1;}
+button,.filebtn{font-family:Georgia,serif;font-size:0.8rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border);border-radius:var(--radius);padding:0.38rem 0.7rem;cursor:pointer;white-space:nowrap;transition:border-color .15s,background .15s;}
+button:hover,.filebtn:hover{border-color:var(--gold);background:var(--surface);}
+button.active{border-color:var(--gold);color:var(--gold);background:var(--surface2);}
+button.primary{border-color:var(--gold);color:var(--gold);}
+input[type=file]{display:none;}
+.workspace{display:flex;flex:1;min-height:0;}
+/* PALETTE */
+.palette{width:250px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0;}
+.cat-tabs{display:flex;flex-wrap:wrap;gap:0.25rem;padding:0.6rem;border-bottom:1px solid var(--border);}
+.cat-tabs button{font-size:0.68rem;padding:0.25rem 0.45rem;}
+.tile-scroll{flex:1;overflow-y:auto;padding:0.6rem;display:grid;grid-template-columns:repeat(3,1fr);gap:0.4rem;align-content:start;}
+.tile-thumb{position:relative;aspect-ratio:224/194;background:var(--surface2);border:1px solid var(--border);border-radius:3px;cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.tile-thumb img{width:100%;height:100%;object-fit:contain;}
+.tile-thumb:hover{border-color:var(--gold);}
+.tile-thumb.sel{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold);}
+.tile-thumb .dir{position:absolute;bottom:1px;right:2px;font-size:0.55rem;color:var(--gold);background:rgba(0,0,0,0.6);padding:0 2px;border-radius:2px;}
+.palette-empty{padding:1.5rem;font-size:0.82rem;color:var(--ink-dim);line-height:1.6;text-align:center;}
+.palette-empty strong{color:var(--gold);}
+/* STAGE */
+.stage{flex:1;overflow:hidden;position:relative;background:repeating-linear-gradient(45deg,#0c141c 0 12px,#0e1720 12px 24px);}
+#board{display:block;cursor:crosshair;}
+.zoomctl{position:absolute;right:12px;bottom:12px;display:flex;gap:0.3rem;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0.3rem;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,0.4);}
+.zoomctl button{padding:0.25rem 0.6rem;font-size:1rem;line-height:1;}
+.zoomctl .zpct{min-width:54px;text-align:center;font-size:0.74rem;color:var(--gold);font-variant-numeric:tabular-nums;}
+/* PANEL */
+.panel{width:250px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface);padding:1rem;overflow-y:auto;display:flex;flex-direction:column;gap:1.1rem;}
+.pgroup h2{font-size:0.64rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold);font-weight:normal;margin-bottom:0.6rem;border-bottom:1px solid var(--border);padding-bottom:0.35rem;}
+.ctrl{margin-bottom:0.7rem;}.ctrl:last-child{margin-bottom:0;}
+.ctrl label{display:flex;justify-content:space-between;font-size:0.7rem;letter-spacing:0.05em;color:var(--ink-dim);text-transform:uppercase;margin-bottom:0.3rem;}
+.ctrl label .val{color:var(--gold);}
+input[type=range]{width:100%;accent-color:var(--gold);}
+input[type=number],input[type=text],select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--ink);font-family:Georgia,serif;font-size:0.8rem;padding:0.35rem 0.5rem;border-radius:var(--radius);}
+input[type=text]:focus,select:focus{border-color:var(--gold);outline:none;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;}
+.layer-btns,.tool-btns{display:flex;gap:0.35rem;flex-wrap:wrap;}
+.layer-btns button,.tool-btns button{flex:1;font-size:0.72rem;padding:0.4rem 0.2rem;}
+.toggle-row{display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;font-size:0.82rem;cursor:pointer;}
+.toggle-row input{accent-color:var(--gold);width:14px;height:14px;}
+.hintline{font-size:0.68rem;color:var(--ink-dim);line-height:1.5;font-style:italic;}
+#benchOut{display:none;font-family:ui-monospace,Consolas,monospace;font-size:0.66rem;white-space:pre;background:#0c141c;border:1px solid var(--border);border-radius:4px;padding:0.5rem;margin-top:0.5rem;overflow-x:auto;color:#bfe0f0;line-height:1.5;}
+#stampList{display:grid;grid-template-columns:repeat(2,1fr);gap:0.4rem;max-height:220px;overflow-y:auto;margin-top:0.5rem;}
+.stamp-item{position:relative;background:var(--surface2);border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:0.3rem;text-align:center;}
+.stamp-item:hover{border-color:var(--gold);}
+.stamp-item.sel{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold);}
+.stamp-item img{width:100%;height:56px;object-fit:contain;display:block;background:#0c141c;border-radius:2px;}
+.stamp-item .nm{font-size:0.6rem;color:var(--ink-dim);margin-top:0.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.stamp-item .del{position:absolute;top:0;right:4px;color:#ffb0a0;font-size:0.75rem;opacity:0.55;}
+.stamp-item .del:hover{opacity:1;}
+kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:0 4px;font-size:0.7rem;font-family:inherit;}
+</style>
+
+<div class="topbar">
+  <h1>Falldin <em>hexmapper</em></h1>
+  <label class="filebtn" for="tileFolder">📂 Load Tile Folder</label>
+  <input type="file" id="tileFolder" webkitdirectory directory multiple>
+  <label class="filebtn" for="tmpl">🗺 Template Image (or Ctrl+V)</label>
+  <input type="file" id="tmpl" accept="image/*">
+  <a class="filebtn" href="stamp-creator.html" target="_blank" style="text-decoration:none;">✧ Stamp Creator</a>
+  <span id="status" style="font-size:0.72rem;color:var(--ink-dim);margin-left:0.4rem;">0 hexes · 0 tiles</span>
+  <span class="spacer"></span>
+  <button id="saveBtn">💾 Save</button>
+  <label class="filebtn" for="loadProj">Open</label>
+  <input type="file" id="loadProj" accept=".json">
+  <button id="pngBtn">🖼 Export PNG</button>
+  <button id="resetBtn" style="border-color:#9b4030;color:#ffb0a0;">🗑 Reset</button>
+</div>
+
+<div class="workspace">
+  <!-- PALETTE -->
+  <div class="palette">
+    <div class="cat-tabs" id="catTabs"></div>
+    <div class="tile-scroll" id="tileScroll">
+      <div class="palette-empty" id="palEmpty">
+        Click <strong>Load Tile Folder</strong> and choose<br><br>
+        <strong>…\World+Map+Hex+Tiles\Assets - 72 DPI (VTT)</strong><br><br>
+        The editor reads every hex PNG and sorts them into categories here.
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE -->
+  <div class="stage" id="stage">
+    <canvas id="board" width="900" height="700"></canvas>
+    <div class="zoomctl">
+      <button id="zoomOut" title="Zoom out (− or Ctrl+scroll)">−</button>
+      <span class="zpct" id="zoomPct">100%</span>
+      <button id="zoomIn" title="Zoom in (+ or Ctrl+scroll)">+</button>
+      <button id="zoomFit" title="Fit whole map (0)" style="font-size:0.74rem;">⤢ Fit</button>
+    </div>
+  </div>
+
+  <!-- PANEL -->
+  <div class="panel">
+    <div class="pgroup">
+      <h2>Tool</h2>
+      <div class="tool-btns">
+        <button data-tool="paint" class="active">✎ Paint</button>
+        <button data-tool="erase">✕ Erase</button>
+        <button data-tool="fill">◯ Fill Area</button>
+        <button data-tool="crop">⛶ Crop</button>
+        <button data-tool="stamp">❖ Stamp</button>
+        <button data-tool="pan">✋ Pan</button>
+        <button data-tool="recenter">✥ Recenter</button>
+      </div>
+      <p class="hintline" style="margin-top:0.5rem;"><b>✥ Recenter</b>: click a hex &amp; drag (or arrow-keys) to nudge an off-centre tile; double-click resets it. <b>Pan</b>: ✋ tool, middle-mouse, hold <kbd>Space</kbd>+drag, or scroll. <kbd>Ctrl</kbd>+scroll zooms.</p>
+      <div class="ctrl" style="margin-top:0.6rem;">
+        <label>River / feature rotation <span class="val" id="vRot">0°</span></label>
+        <div class="tool-btns"><button id="rotL">↺ −60°</button><button id="rotR">↻ +60°</button></div>
+      </div>
+      <div style="margin-top:0.6rem;">
+        <label class="toggle-row"><input type="checkbox" id="riverConnect" checked>Auto-connect rivers/paths</label>
+        <label class="toggle-row"><input type="checkbox" id="randVariant" checked>Randomize terrain variant</label>
+      </div>
+      <p class="hintline" style="margin-top:0.5rem;"><kbd>Ctrl+Z</kbd> undo · <kbd>Alt</kbd>+click = eyedropper (copy a hex's terrain)</p>
+    </div>
+
+    <div class="pgroup">
+      <h2>Active Layer</h2>
+      <div class="layer-btns">
+        <button data-layer="base" class="active">Terrain</button>
+        <button data-layer="lines">River/Path</button>
+        <button data-layer="features">Feature</button>
+      </div>
+      <p class="hintline" style="margin-top:0.5rem;">Terrain replaces the hex. River/Path &amp; Feature stack on top. Picking a river or path tile switches here automatically.</p>
+    </div>
+
+    <div class="pgroup">
+      <h2>Grid</h2>
+      <div class="row2">
+        <div class="ctrl"><label>Columns</label><input type="number" id="cols" value="24" min="2" max="2000"></div>
+        <div class="ctrl"><label>Rows</label><input type="number" id="rows" value="18" min="2" max="2000"></div>
+      </div>
+      <div class="ctrl"><label>Hex size <span class="val" id="vHex">64</span></label><input type="range" id="hexSize" min="6" max="160" value="64"></div>
+      <div class="ctrl"><label>Tile fill <span class="val" id="vFill">200%</span></label><input type="range" id="tileFill" min="80" max="300" value="200"></div>
+      <label class="toggle-row"><input type="checkbox" id="showGrid" checked>Show hex grid</label>
+      <label class="toggle-row"><input type="checkbox" id="showRuler">Ruler (hex coordinates)</label>
+      <button id="clearMap" style="width:100%;margin-top:0.5rem;border-color:#9b4030;color:#ffb0a0;">Clear All Hexes</button>
+    </div>
+
+    <div class="pgroup">
+      <h2>Save States</h2>
+      <div class="row2"><input type="text" id="slotName" placeholder="name this save"><button id="saveState">＋ Save</button></div>
+      <select id="stateSlots" style="width:100%;margin-top:0.5rem;"></select>
+      <div class="btn-row" style="margin-top:0.4rem;"><button id="loadState">Load</button><button id="delState">Delete</button></div>
+      <label class="toggle-row" style="margin-top:0.4rem;"><input type="checkbox" id="autosave" checked>Auto-save (restores on reload)</label>
+    </div>
+
+    <div class="pgroup">
+      <h2>Stamps</h2>
+      <p class="hintline" style="margin-bottom:0.5rem;">Authored in the <b>Stamp Creator</b> — saved stamps show up here automatically. Click one, then click the map to place it.</p>
+      <div class="btn-row">
+        <button id="reloadStamps">⟳ Reload</button>
+        <label class="filebtn" for="importStamps" style="flex:1;text-align:center;padding:0.4rem 0.4rem;font-size:0.74rem;">⭱ Import file</label>
+        <input type="file" id="importStamps" accept=".json">
+      </div>
+      <div id="stampList"></div>
+    </div>
+
+    <div class="pgroup">
+      <h2>Crop / Region</h2>
+      <p class="hintline" style="margin-bottom:0.5rem;">Pick the <b>⛶ Crop</b> tool and drag a box over the hexes you want.</p>
+      <button id="exportSel" style="width:100%;margin-bottom:0.4rem;">🖼 Export Selection PNG</button>
+      <button id="renderSelHD" style="width:100%;margin-bottom:0.4rem;border-color:var(--gold);color:var(--gold);">🎨 Render Selection in HD</button>
+      <button id="cropSel" style="width:100%;margin-bottom:0.4rem;">✂ Crop Map to Selection</button>
+      <button id="clearSel" style="width:100%;">Clear Selection</button>
+    </div>
+
+    <div class="pgroup">
+      <h2>Render (High-Res)</h2>
+      <label class="filebtn" for="hdFolder" style="display:block;text-align:center;margin-bottom:0.4rem;">📂 Load HD Tile Folder</label>
+      <input type="file" id="hdFolder" webkitdirectory directory multiple>
+      <button id="renderHD" style="width:100%;">🎨 Render HD PNG</button>
+      <p class="hintline" style="margin-top:0.4rem;">Point at the <b>150</b> or <b>300 DPI</b> asset folder, then render — it rebuilds your map at full asset resolution.</p>
+    </div>
+
+    <div class="pgroup">
+      <h2>Template</h2>
+      <div class="ctrl"><label>Opacity <span class="val" id="vOp">45%</span></label><input type="range" id="tmplOp" min="0" max="100" value="45"></div>
+      <div class="ctrl"><label>Scale <span class="val" id="vScale">100%</span></label><input type="range" id="tmplScale" min="20" max="300" value="100"></div>
+      <div class="row2">
+        <div class="ctrl"><label>Offset X</label><input type="range" id="tmplX" min="-3000" max="3000" value="0"></div>
+        <div class="ctrl"><label>Offset Y</label><input type="range" id="tmplY" min="-3000" max="3000" value="0"></div>
+      </div>
+      <label class="toggle-row"><input type="checkbox" id="tmplTop">Draw template on top</label>
+    </div>
+
+    <div class="pgroup">
+      <h2>Performance</h2>
+      <button id="benchBtn" style="width:100%;">⏱ Run Stress Test</button>
+      <pre id="benchOut"></pre>
+      <p class="hintline" style="margin-top:0.4rem;">Fills a grid with random terrain and times a full redraw at each tile count.</p>
+    </div>
+
+    <div class="pgroup">
+      <h2>How to use</h2>
+      <p class="hintline">
+        Load the tile folder + your map template. Size the grid to match. Pick a terrain tile, click hexes to lay land.
+        Switch to a <b>River</b> tile and draw along valleys — connecting pieces drop on neighbours automatically.
+        Right-click erases. <b>Pan</b> with the ✋ tool / middle-mouse / <kbd>Space</kbd>+drag / scroll.
+        <b>Zoom</b> with the on-screen <b>− % +</b> controls, <kbd>Ctrl</kbd>+scroll (zooms to cursor), <kbd>+</kbd>/<kbd>−</kbd>, or <kbd>0</kbd> to fit the whole map.
+        <b>v2:</b> viewport culling + a colour overview when zoomed out, diff-based undo, and compressed saves — built for very large maps.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const board=$('board'), ctx=board.getContext('2d'), stage=$('stage');
+
+// ---- state ----
+let tiles=[];              // {base,name,url,img,cat,dir,prefix}
+let index={};              // base-name -> tile
+let cats={}, activeCat=null, activeTile=null;
+let tool='paint', layer='base';
+let cells=new Map();       // "c,r" -> {base:tile, lines:[tiles], features:[tiles]}
+let tmplImg=null;
+const grid={cols:24,rows:18,hex:64};
+const tmpl={op:0.45,scale:1,x:0,y:0,top:false};
+let showGrid=true;
+let showRuler=false;
+let tileFill=2.0;
+let sel=null, selDrag=false, selRange=null;   // crop selection (pixels) and hex range
+let brushStep=0;                              // river/feature rotation in 60° steps
+let lassoPts=null;                            // freehand fill loop
+let hdFiles={}, hdCache={};                   // high-DPI assets for final render
+let cam={x:0,y:0};                            // viewport camera (world coords of top-left)
+
+const DIRS=['N','NE','SE','S','SW','NW','E','W'];
+const OPP={N:'S',S:'N',NE:'SW',SW:'NE',SE:'NW',NW:'SE',E:'W',W:'E'};
+
+// ---- hex math (flat-top; PNG bbox == hex bbox; odd columns shifted DOWN) ----
+function hexW(){ return grid.hex; }
+function hexH(){ return grid.hex*(194/224); }
+function colStep(){ return hexW()*0.75; }
+function rowStep(){ return hexH(); }
+function hexCenter(c,r){ return { x:c*colStep()+hexW()/2, y:r*rowStep()+hexH()/2+((c&1)?hexH()/2:0) }; }
+function worldW(){ return (grid.cols-1)*colStep()+hexW(); }
+function worldH(){ return grid.rows*rowStep()+hexH()/2; }
+function neighbor(c,r,dir){
+  const even=!(c&1);
+  switch(dir){
+    case 'N': return [c,r-1]; case 'S': return [c,r+1];
+    case 'NE': return even?[c+1,r-1]:[c+1,r]; case 'SE': return even?[c+1,r]:[c+1,r+1];
+    case 'NW': return even?[c-1,r-1]:[c-1,r]; case 'SW': return even?[c-1,r]:[c-1,r+1];
+    default: return null; // E / W are points, no auto-connect
+  }
+}
+function pixelToHex(px,py){
+  const ac=Math.max(0,Math.floor(px/colStep())), ar=Math.max(0,Math.floor(py/rowStep()));
+  let best=null,bd=1e18;
+  for(let c=ac-1;c<=ac+1;c++)for(let r=ar-1;r<=ar+1;r++){
+    if(c<0||r<0||c>=grid.cols||r>=grid.rows) continue;
+    const ctr=hexCenter(c,r), d=(ctr.x-px)**2+(ctr.y-py)**2;
+    if(d<bd){bd=d;best=[c,r];}
+  }
+  return best;
+}
+
+// ---- tile ingest ----
+// Duplicate control: the pack ships the SAME filename at 72/150/300 DPI, so loading the whole pack
+// would list every tile 3×. "Extended" shares no filenames with the base set, so it's kept in full.
+// 300 DPI ships as .webp; 150 DPI has a literal "Extras - Copy" duplicate folder.
+const DPI_PREF=[72,150,300];                      // editing prefers the small/fast copy
+function dpiOf(p){ const m=p.match(/(\d{2,3})\s*DPI/i); return m?+m[1]:0; }
+function dpiRank(d){ const i=DPI_PREF.indexOf(d); return i<0?99:i; }
+$('tileFolder').addEventListener('change',e=>{
+  const files=[...e.target.files].filter(f=>/\.(png|webp)$/i.test(f.name));
+  if(!files.length){ alert('No tile images (.png/.webp) found in that folder.'); return; }
+  const best=new Map(); let dropped=0;
+  for(const f of files){
+    const path=f.webkitRelativePath||f.name;
+    if(/Extras\s*-\s*Copy/i.test(path)){ dropped++; continue; }
+    const base=f.name.replace(/\.(png|webp)$/i,'');
+    const d=dpiOf(path), cur=best.get(base);
+    if(cur){ dropped++; if(dpiRank(d)>=dpiRank(cur.dpi)) continue; }
+    best.set(base,{f,dpi:d,path});
+  }
+  tiles=[]; index={}; cats={};
+  for(const [base,rec] of best){
+    const m=base.match(/ (N|NE|E|SE|S|SW|W|NW)$/);
+    const dir=m?m[1]:null, prefix=dir?base.slice(0,m.index):base;
+    const t={base,name:rec.f.name,url:URL.createObjectURL(rec.f),img:null,cat:categorize(base,rec.path),dir,prefix,dpi:rec.dpi};
+    tiles.push(t); index[base]=t; (cats[t.cat]=cats[t.cat]||[]).push(t);
+  }
+  buildCatTabs();
+  const first=Object.keys(cats)[0]; selectCat(first);
+  $('palEmpty')&&($('palEmpty').style.display='none');
+  const nx=tiles.filter(t=>/^Extras/.test(t.cat)).length;
+  const dpis=[...new Set(tiles.map(t=>t.dpi).filter(Boolean))].sort((a,b)=>a-b).join('/');
+  flash(tiles.length+' tiles · '+(nx?nx+' extras':'⚠ no Extras')+(dropped?' · '+dropped+' dupes skipped':'')+(dpis?' · '+dpis+' DPI':''));
+  refreshSlots();
+  try{ const auto=localStorage.getItem(LS_AUTO);
+    if(auto && confirm('Restore your last auto-saved map?')) applyProject(JSON.parse(auto));
+  }catch(e){}
+});
+function categorize(base,path){
+  // Extras sit in an "Extras" subfolder AND never start with "Hex - " — check both so it works
+  // even when the browser reports no relative path.
+  if(/Extras/i.test(path) || !/^Hex\s*-/i.test(base)){
+    if(/Building|City|Town|Farm|Tower|Monastery|Wall/i.test(base)) return 'Extras · Towns';
+    if(/Banner|Statue/i.test(base)) return 'Extras · Markers';
+    return 'Extras · Misc';
+  }
+  const b=base.replace(/^Hex - /i,'');
+  if(/^Base/i.test(b)) return 'Base';
+  if(/River/i.test(b)) return 'Rivers';
+  if(/Path/i.test(b)) return 'Paths';
+  if(/Coast|Beach/i.test(b)) return 'Coast';
+  if(/Water|Ocean|Swamp/i.test(b)) return 'Water';
+  if(/Mountain/i.test(b)) return 'Mountains';
+  if(/Hill/i.test(b)) return 'Hills';
+  if(/Forest|Tree/i.test(b)) return 'Forest';
+  if(/Plains/i.test(b)) return 'Plains';
+  if(/Snow/i.test(b)) return 'Snow';
+  if(/Wetland/i.test(b)) return 'Wetlands';
+  if(/Urban|Ruin/i.test(b)) return 'Urban';
+  return 'Other';
+}
+const CAT_ORDER=['Base','Plains','Hills','Forest','Mountains','Water','Coast','Snow','Wetlands','Rivers','Paths','Urban','Other','Extras · Towns','Extras · Markers','Extras · Misc'];
+function buildCatTabs(){
+  const wrap=$('catTabs'); wrap.innerHTML='';
+  const keys=Object.keys(cats).sort((a,b)=>{const ia=CAT_ORDER.indexOf(a),ib=CAT_ORDER.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
+  for(const k of keys){ const b=document.createElement('button'); b.textContent=k.replace('Extras · ','+ ')+' ('+cats[k].length+')'; b.onclick=()=>selectCat(k); b.dataset.cat=k; wrap.appendChild(b); }
+}
+function selectCat(k){
+  activeCat=k;
+  [...$('catTabs').children].forEach(b=>b.classList.toggle('active',b.dataset.cat===k));
+  const scroll=$('tileScroll'); scroll.innerHTML='';
+  for(const t of cats[k]){
+    const d=document.createElement('div'); d.className='tile-thumb'; d.title=t.base;
+    const im=document.createElement('img'); im.loading='lazy'; im.src=t.url; d.appendChild(im);
+    if(t.dir){ const s=document.createElement('span'); s.className='dir'; s.textContent=t.dir; d.appendChild(s); }
+    d.onclick=()=>{ activeTile=t; [...scroll.children].forEach(x=>x.classList.remove('sel')); d.classList.add('sel');
+      if(t.cat==='Rivers'||t.cat==='Paths') setLayer('lines');
+      else if(/Extras/.test(t.cat)||t.cat==='Urban') setLayer('features');
+      else setLayer('base');
+    };
+    scroll.appendChild(d);
+  }
+}
+
+// ---- image loading (lazy decode for drawing) ----
+function ensureImg(t,cb){ if(t.img){cb(t.img);return;} const im=new Image(); im.onload=()=>{t.img=im;cb(im);}; im.src=t.url; }
+
+// ---- dirty flags (LOD overview cache + autosave) ----
+let lodDirty=true, needAutosave=false;
+function markDirty(){ lodDirty=true; needAutosave=true; }
+
+// ---- undo history (diff-based: records only the cells changed by each operation) ----
+let history=[], undoDiff=null;
+function cloneCell(cell){ return cell?{base:cell.base,lines:[...cell.lines],features:[...cell.features],ox:cell.ox||0,oy:cell.oy||0,sc:cell.sc||1,hue:cell.hue||0,sat:(cell.sat===undefined?1:cell.sat)}:null; }
+function snapshot(){ const m=new Map(); for(const [k,v] of cells) m.set(k,cloneCell(v)); return m; }
+function beginOp(){ undoDiff=new Map(); }
+function touch(key){ if(undoDiff && !undoDiff.has(key)) undoDiff.set(key, cloneCell(cells.get(key))); markDirty(); }
+function commitOp(){ if(undoDiff){ if(undoDiff.size){ history.push(undoDiff); if(history.length>80) history.shift(); } undoDiff=null; } }
+function pushFull(){ history.push({full:snapshot()}); if(history.length>80) history.shift(); markDirty(); }   // whole-map replace ops
+function undoLast(){ if(!history.length) return; const h=history.pop();
+  if(h && h.full){ cells=h.full; }
+  else if(h instanceof Map){ for(const [k,prev] of h){ if(prev===null) cells.delete(k); else cells.set(k,prev); } }
+  markDirty(); draw(); }
+
+// ---- placement ----
+function place(c,r){
+  if(!activeTile) return;
+  let put=activeTile;
+  if(layer==='base' && $('randVariant') && $('randVariant').checked && !activeTile.dir){
+    const pool=(cats[activeTile.cat]||[]).filter(t=>!t.dir); if(pool.length) put=pool[(Math.random()*pool.length)|0]; }
+  const rot=brushStep*Math.PI/3;
+  const key=c+','+r; touch(key); let cell=cells.get(key); if(!cell){cell={base:null,lines:[],features:[]};cells.set(key,cell);}
+  if(layer==='base'){ cell.base=put; }
+  else if(layer==='lines'){
+    const li=cell.lines.findIndex(o=>o.t===put);
+    if(li>=0){                                    // same river/path already here → this click rotates it 60°
+      const cur=cell.lines[li];
+      cell.lines[li]={t:cur.t, rot:((Math.round(cur.rot/(Math.PI/3))+1)%6)*(Math.PI/3)};
+      draw(); return;
+    }
+    cell.lines.push({t:put,rot});
+    if($('riverConnect').checked && brushStep===0 && put.dir && OPP[put.dir]){   // auto-connect only when unrotated
+      const nb=neighbor(c,r,put.dir);
+      if(nb && nb[0]>=0&&nb[1]>=0&&nb[0]<grid.cols&&nb[1]<grid.rows){
+        const opp=index[put.prefix+OPP[put.dir]];
+        if(opp){ const nk=nb.join(','); touch(nk); let nc=cells.get(nk); if(!nc){nc={base:null,lines:[],features:[]};cells.set(nk,nc);} if(!nc.lines.some(o=>o.t===opp&&o.rot===0)){nc.lines.push({t:opp,rot:0});} }
+      }
+    }
+  }
+  else { if(!cell.features.some(o=>o.t===put&&o.rot===rot)) cell.features.push({t:put,rot}); }
+  draw();
+}
+function erase(c,r){
+  const key=c+','+r, cell=cells.get(key); if(!cell) return;
+  touch(key);
+  if(layer==='base') cell.base=null;
+  else if(layer==='lines') cell.lines.pop();
+  else cell.features.pop();
+  if(!cell.base&&!cell.lines.length&&!cell.features.length) cells.delete(key);
+  draw();
+}
+function countTiles(){ let n=0; for(const c of cells.values()) n+=(c.base?1:0)+c.lines.length+c.features.length; return n; }
+function updateStatus(){ const s=$('status'); if(s) s.textContent=cells.size+' hexes · '+countTiles()+' tiles'; }
+
+// ---- draw scheduler (viewport render on the next frame) ----
+let rafPending=false;
+function draw(){ if(rafPending) return; rafPending=true; requestAnimationFrame(()=>{ rafPending=false; render(); updateStatus(); scheduleAutosave(); }); }
+
+// ---- viewport render: only the hexes currently on screen are drawn ----
+function visibleRange(){
+  const cs=colStep(), rs=rowStep();
+  const c0=Math.max(0, Math.floor(cam.x/cs)-1), c1=Math.min(grid.cols-1, Math.ceil((cam.x+board.width)/cs)+1);
+  const r0=Math.max(0, Math.floor(cam.y/rs)-2), r1=Math.min(grid.rows-1, Math.ceil((cam.y+board.height)/rs)+2);
+  return {c0,c1,r0,r1};
+}
+function drawTile(o,sx,sy,dw,dh){              // o = {t, rot}, sx/sy already in screen space
+  const t=o.t; if(!t.img){ ensureImg(t,()=>draw()); return; }
+  if(o.rot){ ctx.save(); ctx.translate(sx,sy); ctx.rotate(o.rot); ctx.drawImage(t.img,-dw/2,-dh/2,dw,dh); ctx.restore(); }
+  else ctx.drawImage(t.img,sx-dw/2,sy-dh/2,dw,dh);
+}
+function cellFilter(cell){                       // hue / saturation recolouring from the Stamp Creator
+  const h=cell.hue||0, s=(cell.sat===undefined?1:cell.sat);
+  if(!h && s===1) return 'none';
+  return (h?'hue-rotate('+h+'deg) ':'')+(s!==1?'saturate('+s+')':'');
+}
+function drawCellVP(cell,ctr,dw0,dh0){
+  const sc=cell.sc||1, dw=dw0*sc, dh=dh0*sc;
+  const sx=ctr.x-cam.x+(cell.ox||0), sy=ctr.y-cam.y+(cell.oy||0);
+  const fl=cellFilter(cell); if(fl!=='none') ctx.filter=fl;
+  if(cell.base){ if(cell.base.img) ctx.drawImage(cell.base.img,sx-dw/2,sy-dh/2,dw,dh); else ensureImg(cell.base,()=>draw()); }
+  for(const o of cell.lines) drawTile(o,sx,sy,dw,dh);
+  for(const o of cell.features) drawTile(o,sx,sy,dw,dh);
+  if(fl!=='none') ctx.filter='none';
+}
+const LOD_HEX=18;                              // below this hex size, blit the cached colour overview
+function useLOD(){ return hexW()<LOD_HEX && cells.size>400; }
+function render(){
+  const vw=board.width, vh=board.height;
+  ctx.clearRect(0,0,vw,vh); ctx.fillStyle='#0c141c'; ctx.fillRect(0,0,vw,vh);
+  if(tmplImg && !tmpl.top) drawTemplate();
+  if(useLOD()){
+    if(lodDirty || !lodCanvas) buildLOD();
+    if(lodCanvas) ctx.drawImage(lodCanvas, 0,0,lodCanvas.width,lodCanvas.height, -cam.x,-cam.y, worldW(), worldH());
+    if(tmplImg && tmpl.top) drawTemplate();
+    drawSelection(); drawLasso();
+    return;
+  }
+  const {c0,c1,r0,r1}=visibleRange();
+  if(showGrid) drawGrid(c0,c1,r0,r1);
+  const dw=hexW()*tileFill, dh=hexH()*tileFill;
+  const vis=[];
+  const rectArea=(c1-c0+1)*(r1-r0+1);
+  if(rectArea<=cells.size){                     // few cells on screen: scan the visible rectangle
+    for(let c=c0;c<=c1;c++)for(let r=r0;r<=r1;r++){ const cell=cells.get(c+','+r); if(cell) vis.push({cell,ctr:hexCenter(c,r)}); }
+  } else {                                       // huge sparse view: scan placed cells and cull
+    for(const [k,cell] of cells){ const c=+k.slice(0,k.indexOf(',')), r=+k.slice(k.indexOf(',')+1);
+      if(c>=c0&&c<=c1&&r>=r0&&r<=r1) vis.push({cell,ctr:hexCenter(c,r)}); }
+  }
+  vis.sort((a,b)=>(a.ctr.y-b.ctr.y)||(a.ctr.x-b.ctr.x));   // lower rows overlap upper
+  for(const {cell,ctr} of vis) drawCellVP(cell,ctr,dw,dh);
+  if(tmplImg && tmpl.top) drawTemplate();
+  if(showRuler) drawRuler(c0,c1,r0,r1);
+  drawSelection(); drawLasso(); drawRecenterHint();
+}
+// ---- LOD colour overview (rebuilt only when the map changes; blitted when zoomed out) ----
+let lodCanvas=null, lodCtx=null;
+function avgColor(t){
+  if(t.avg!==undefined) return t.avg;
+  if(!t.img){ ensureImg(t,()=>draw()); return null; }
+  const c=document.createElement('canvas'); c.width=c.height=1; const x=c.getContext('2d'); x.drawImage(t.img,0,0,1,1);
+  const d=x.getImageData(0,0,1,1).data; t.avg=(d[3]<8)?null:('rgb('+d[0]+','+d[1]+','+d[2]+')'); return t.avg;
+}
+function buildLOD(){
+  const maxDim=2200, wW=worldW(), wH=worldH(), s=Math.min(1,maxDim/Math.max(wW,wH,1));
+  if(!lodCanvas){ lodCanvas=document.createElement('canvas'); lodCtx=lodCanvas.getContext('2d'); }
+  lodCanvas.width=Math.max(1,Math.ceil(wW*s)); lodCanvas.height=Math.max(1,Math.ceil(wH*s));
+  lodCtx.clearRect(0,0,lodCanvas.width,lodCanvas.height);
+  const bw=Math.max(1,hexW()*tileFill*s), bh=Math.max(1,hexH()*tileFill*s); let inc=false;
+  for(const [k,cell] of cells){ const c=+k.slice(0,k.indexOf(',')), r=+k.slice(k.indexOf(',')+1), ctr=hexCenter(c,r);
+    let col = cell.base?avgColor(cell.base):(cell.features.length?avgColor(cell.features[cell.features.length-1].t):null);
+    if(col===null){ if(cell.base && !cell.base.img) inc=true; continue; }
+    lodCtx.fillStyle=col; lodCtx.fillRect(ctr.x*s-bw/2, ctr.y*s-bh/2, bw, bh); }
+  lodDirty=inc;   // if some tiles weren't decoded yet, rebuild once they load
+}
+function drawLasso(){
+  if(!lassoPts||!lassoPts.length) return;
+  ctx.save(); ctx.setLineDash([6,5]); ctx.lineWidth=2; ctx.strokeStyle='rgba(201,168,76,0.95)'; ctx.fillStyle='rgba(201,168,76,0.12)';
+  ctx.beginPath(); ctx.moveTo(lassoPts[0][0]-cam.x,lassoPts[0][1]-cam.y);
+  for(let i=1;i<lassoPts.length;i++) ctx.lineTo(lassoPts[i][0]-cam.x,lassoPts[i][1]-cam.y);
+  ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+}
+function drawRecenterHint(){
+  if(tool!=='recenter' || !recenterSel) return;
+  const [c,r]=recenterSel, ctr=hexCenter(c,r), x=ctr.x-cam.x, y=ctr.y-cam.y, w=hexW()/2, h=hexH()/2;
+  ctx.save(); ctx.strokeStyle='#66ccff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(x+w,y);ctx.lineTo(x+w/2,y-h);ctx.lineTo(x-w/2,y-h);ctx.lineTo(x-w,y);ctx.lineTo(x-w/2,y+h);ctx.lineTo(x+w/2,y+h);ctx.closePath(); ctx.stroke(); ctx.restore();
+}
+// ---- full-map / region compositor for PNG export (scales down if it would exceed browser limits) ----
+function composeFull(bounds,maxArea){
+  maxArea=maxArea||120e6;
+  const c0=bounds?bounds.minC:0, r0=bounds?bounds.minR:0, c1=bounds?bounds.maxC:grid.cols-1, r1=bounds?bounds.maxR:grid.rows-1;
+  let X0=1e9,Y0=1e9,X1=-1e9,Y1=-1e9;
+  for(let c=c0;c<=c1;c++)for(let r=r0;r<=r1;r++){ const ctr=hexCenter(c,r); X0=Math.min(X0,ctr.x-hexW()/2);X1=Math.max(X1,ctr.x+hexW()/2);Y0=Math.min(Y0,ctr.y-hexH()/2);Y1=Math.max(Y1,ctr.y+hexH()/2); }
+  const Wf=Math.max(1,X1-X0), Hf=Math.max(1,Y1-Y0), s=Math.min(1,Math.sqrt(maxArea/(Wf*Hf)));
+  const cv=document.createElement('canvas'); cv.width=Math.max(1,Math.ceil(Wf*s)); cv.height=Math.max(1,Math.ceil(Hf*s)); const cx=cv.getContext('2d');
+  const dw=hexW()*tileFill*s, dh=hexH()*tileFill*s;
+  const vis=[];
+  for(let c=c0;c<=c1;c++)for(let r=r0;r<=r1;r++){ const cell=cells.get(c+','+r); if(cell) vis.push({cell,ctr:hexCenter(c,r)}); }
+  vis.sort((a,b)=>(a.ctr.y-b.ctr.y)||(a.ctr.x-b.ctr.x));
+  const one=(im,rot,x,y,sc)=>{ if(!im)return; const w=dw*sc, h=dh*sc;
+    if(rot){cx.save();cx.translate(x,y);cx.rotate(rot);cx.drawImage(im,-w/2,-h/2,w,h);cx.restore();} else cx.drawImage(im,x-w/2,y-h/2,w,h); };
+  for(const {cell,ctr} of vis){ const sc=cell.sc||1, x=(ctr.x-X0+(cell.ox||0))*s, y=(ctr.y-Y0+(cell.oy||0))*s;
+    const fl=cellFilter(cell); if(fl!=='none') cx.filter=fl;
+    if(cell.base) one(cell.base.img,0,x,y,sc); for(const o of cell.lines) one(o.t.img,o.rot,x,y,sc); for(const o of cell.features) one(o.t.img,o.rot,x,y,sc);
+    if(fl!=='none') cx.filter='none'; }
+  return cv;
+}
+function drawSelection(){
+  if(!sel) return;
+  const x=Math.min(sel.x0,sel.x1)-cam.x, y=Math.min(sel.y0,sel.y1)-cam.y, w=Math.abs(sel.x1-sel.x0), h=Math.abs(sel.y1-sel.y0);
+  ctx.save(); ctx.fillStyle='rgba(201,168,76,0.12)'; ctx.fillRect(x,y,w,h);
+  ctx.setLineDash([9,6]); ctx.lineWidth=2; ctx.strokeStyle='rgba(201,168,76,0.95)'; ctx.strokeRect(x,y,w,h);
+  if(selRange){ const ws=selRange.maxC-selRange.minC+1, hs=selRange.maxR-selRange.minR+1;
+    ctx.setLineDash([]); ctx.font='bold 15px Georgia'; ctx.textAlign='left'; ctx.textBaseline='top';
+    const label=ws+' × '+hs+' hexes'; const tw=ctx.measureText(label).width;
+    ctx.fillStyle='rgba(14,23,32,0.85)'; ctx.fillRect(x+4,y+4,tw+12,22);
+    ctx.fillStyle='#E6C766'; ctx.fillText(label,x+10,y+8); }
+  ctx.restore();
+}
+function drawRuler(c0,c1,r0,r1){
+  ctx.save(); ctx.font='11px Georgia'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(let c=c0;c<=c1;c++){ const x=hexCenter(c,0).x-cam.x;
+    ctx.fillStyle='rgba(14,23,32,0.7)'; ctx.fillRect(x-9,2,18,14); ctx.fillStyle='#E6C766'; ctx.fillText(c,x,9); }
+  ctx.textAlign='right';
+  for(let r=r0;r<=r1;r++){ const y=hexCenter(0,r).y-cam.y;
+    ctx.fillStyle='rgba(14,23,32,0.7)'; ctx.fillRect(2,y-7,22,14); ctx.fillStyle='#E6C766'; ctx.fillText(r,22,y); }
+  ctx.restore();
+}
+function drawTemplate(){
+  const iw=tmplImg.width*tmpl.scale, ih=tmplImg.height*tmpl.scale;
+  ctx.globalAlpha=tmpl.op; ctx.drawImage(tmplImg,tmpl.x-cam.x,tmpl.y-cam.y,iw,ih); ctx.globalAlpha=1;
+}
+function drawGrid(c0,c1,r0,r1){
+  ctx.strokeStyle='rgba(201,168,76,0.30)'; ctx.lineWidth=1;
+  const w=hexW()/2, h=hexH()/2;
+  for(let c=c0;c<=c1;c++)for(let r=r0;r<=r1;r++){
+    const ctr=hexCenter(c,r), x=ctr.x-cam.x, y=ctr.y-cam.y;
+    ctx.beginPath();
+    ctx.moveTo(x+w, y); ctx.lineTo(x+w/2, y-h); ctx.lineTo(x-w/2, y-h); ctx.lineTo(x-w, y); ctx.lineTo(x-w/2, y+h); ctx.lineTo(x+w/2, y+h);
+    ctx.closePath(); ctx.stroke();
+  }
+}
+
+// ---- canvas interaction (all positions in WORLD space; camera subtracts on draw) ----
+let painting=false, strokeSeen=new Set();
+let panning=false, panStart=null, spaceDown=false;
+let recenterSel=null, recenterStart=null;
+function evtPix(e){ const r=board.getBoundingClientRect(); return { x:(e.clientX-r.left)*(board.width/r.width), y:(e.clientY-r.top)*(board.height/r.height) }; }
+function evtWorld(e){ const p=evtPix(e); return { x:p.x+cam.x, y:p.y+cam.y }; }
+function evtHex(e){ const w=evtWorld(e); return pixelToHex(w.x,w.y); }
+board.addEventListener('mousedown',e=>{
+  if(e.button===1 || spaceDown || tool==='pan'){ panning=true; panStart={mx:e.clientX,my:e.clientY,cx:cam.x,cy:cam.y}; e.preventDefault(); return; }
+  if(tool==='crop'){ const w=evtWorld(e); selDrag=true; sel={x0:w.x,y0:w.y,x1:w.x,y1:w.y}; selRange=null; draw(); return; }
+  if(tool==='fill'){ const w=evtWorld(e); lassoPts=[[w.x,w.y]]; draw(); return; }
+  if(tool==='stamp'){ const sh=evtHex(e); if(sh && activeStamp) placeStamp(sh[0],sh[1]); return; }
+  if(tool==='recenter'){ const h=evtHex(e); if(h){ const cell=cells.get(h.join(',')); if(cell){ beginOp(); touch(h.join(',')); recenterSel=h; const w=evtWorld(e); recenterStart={wx:w.x,wy:w.y,ox:cell.ox||0,oy:cell.oy||0}; painting=true; draw(); } } return; }
+  const h=evtHex(e);
+  if(e.altKey){ if(h){ const cell=cells.get(h.join(',')); if(cell&&cell.base) activeTile=cell.base; } return; }  // eyedropper
+  if(e.button===2){ if(h){ beginOp(); erase(...h); commitOp(); } return; }
+  beginOp(); painting=true; strokeSeen=new Set(); if(h){ strokeSeen.add(h.join(',')); tool==='erase'?erase(...h):place(...h);} });
+board.addEventListener('mousemove',e=>{
+  if(panning){ cam.x=panStart.cx-(e.clientX-panStart.mx); cam.y=panStart.cy-(e.clientY-panStart.my); draw(); return; }
+  if(tool==='crop'){ if(selDrag){ const w=evtWorld(e); sel.x1=w.x; sel.y1=w.y; draw(); } return; }
+  if(tool==='fill'){ if(lassoPts){ const w=evtWorld(e); lassoPts.push([w.x,w.y]); draw(); } return; }
+  if(tool==='recenter'){ if(painting && recenterSel){ const cell=cells.get(recenterSel.join(',')); if(cell){ const w=evtWorld(e); cell.ox=recenterStart.ox+(w.x-recenterStart.wx); cell.oy=recenterStart.oy+(w.y-recenterStart.wy); draw(); } } return; }
+  if(!painting)return; const h=evtHex(e); if(h){ const k=h.join(','); if(strokeSeen.has(k))return; strokeSeen.add(k); tool==='erase'?erase(...h):place(...h);} });
+window.addEventListener('mouseup',()=>{
+  panning=false;
+  if(painting){ painting=false; commitOp(); }   // end paint stroke or recenter drag
+  if(selDrag){ selDrag=false; selRange=hexesInRect(sel.x0,sel.y0,sel.x1,sel.y1);
+    if(selRange){ const b=rangeBBox(selRange); sel={x0:b.x0,y0:b.y0,x1:b.x1,y1:b.y1}; } else sel=null; draw(); }
+  if(lassoPts){ if(lassoPts.length>2 && activeTile){ beginOp(); for(const [c,r] of hexesInPolygon(lassoPts)) place(c,r); commitOp(); } lassoPts=null; draw(); } });
+board.addEventListener('contextmenu',e=>e.preventDefault());
+board.addEventListener('dblclick',e=>{ if(tool==='recenter'){ const h=evtHex(e); if(h){ const cell=cells.get(h.join(',')); if(cell){ beginOp(); touch(h.join(',')); cell.ox=0; cell.oy=0; commitOp(); draw(); } } } });
+window.addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA|SELECT/.test((document.activeElement&&document.activeElement.tagName)||'');
+  if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')){ e.preventDefault(); undoLast(); return; }
+  if(typing) return;
+  if(e.key==='+'||e.key==='='){ e.preventDefault(); zoomBy(1.2); return; }
+  if(e.key==='-'||e.key==='_'){ e.preventDefault(); zoomBy(1/1.2); return; }
+  if(e.key==='0'){ e.preventDefault(); zoomFit(); return; }
+  if(e.key===' '){ spaceDown=true; return; }
+  if(e.key==='r'||e.key==='R'){ rotBrush(e.shiftKey?-1:1); return; }
+  if(tool==='recenter' && recenterSel && e.key.startsWith('Arrow')){ e.preventDefault();
+    const cell=cells.get(recenterSel.join(',')); if(cell){ const s=e.shiftKey?5:1; beginOp(); touch(recenterSel.join(','));
+      if(e.key==='ArrowUp')cell.oy=(cell.oy||0)-s; else if(e.key==='ArrowDown')cell.oy=(cell.oy||0)+s;
+      else if(e.key==='ArrowLeft')cell.ox=(cell.ox||0)-s; else if(e.key==='ArrowRight')cell.ox=(cell.ox||0)+s; commitOp(); draw(); } }
+});
+window.addEventListener('keyup',e=>{ if(e.key===' ') spaceDown=false; });
+// wheel: Ctrl = zoom, on the river/path layer = rotate, otherwise pan
+board.addEventListener('wheel',e=>{
+  if(e.ctrlKey){ e.preventDefault(); const p=evtPix(e); zoomBy(e.deltaY<0?1.12:1/1.12, p.x, p.y); return; }   // zoom toward the cursor
+  if(layer==='lines' || (activeTile && (activeTile.cat==='Rivers'||activeTile.cat==='Paths'))){ e.preventDefault(); rotBrush(e.deltaY>0?1:-1); return; }
+  e.preventDefault(); if(e.shiftKey){ cam.x+=e.deltaY; } else { cam.y+=e.deltaY; cam.x+=e.deltaX; } draw();
+},{passive:false});
+function pointInPoly(x,y,pts){ let inside=false; for(let i=0,j=pts.length-1;i<pts.length;j=i++){ const xi=pts[i][0],yi=pts[i][1],xj=pts[j][0],yj=pts[j][1]; if(((yi>y)!==(yj>y)) && (x<(xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside; } return inside; }
+function hexesInPolygon(pts){ const res=[]; for(let c=0;c<grid.cols;c++)for(let r=0;r<grid.rows;r++){ const ctr=hexCenter(c,r); if(pointInPoly(ctr.x,ctr.y,pts)) res.push([c,r]); } return res; }
+function rotBrush(d){ brushStep=((brushStep+d)%6+6)%6; const v=$('vRot'); if(v) v.textContent=(brushStep*60)+'°'; }
+
+// ---- crop helpers ----
+function hexesInRect(x0,y0,x1,y1){
+  const minx=Math.min(x0,x1),maxx=Math.max(x0,x1),miny=Math.min(y0,y1),maxy=Math.max(y0,y1);
+  let minC=1e9,minR=1e9,maxC=-1e9,maxR=-1e9,any=false;
+  for(let c=0;c<grid.cols;c++)for(let r=0;r<grid.rows;r++){ const ctr=hexCenter(c,r);
+    if(ctr.x>=minx&&ctr.x<=maxx&&ctr.y>=miny&&ctr.y<=maxy){ any=true; minC=Math.min(minC,c);maxC=Math.max(maxC,c);minR=Math.min(minR,r);maxR=Math.max(maxR,r);} }
+  return any?{minC,minR,maxC,maxR}:null;
+}
+function rangeBBox(rg){ let X0=1e9,Y0=1e9,X1=-1e9,Y1=-1e9;
+  for(let c=rg.minC;c<=rg.maxC;c++)for(let r=rg.minR;r<=rg.maxR;r++){ const ctr=hexCenter(c,r);
+    X0=Math.min(X0,ctr.x-hexW()/2);X1=Math.max(X1,ctr.x+hexW()/2);Y0=Math.min(Y0,ctr.y-hexH()/2);Y1=Math.max(Y1,ctr.y+hexH()/2); }
+  return {x0:Math.max(0,X0),y0:Math.max(0,Y0),x1:X1,y1:Y1};
+}
+$('exportSel').addEventListener('click',()=>{
+  if(!selRange){ alert('Pick the ⛶ Crop tool and drag a box first.'); return; }
+  const cv=composeFull(selRange,120e6);
+  const a=document.createElement('a'); a.href=cv.toDataURL('image/png'); a.download='falldin-region.png'; a.click();
+});
+$('cropSel').addEventListener('click',()=>{
+  if(!selRange){ alert('Pick the ⛶ Crop tool and drag a box first.'); return; }
+  pushFull();
+  const {minC,minR,maxC,maxR}=selRange;
+  const shiftC=minC-(minC%2);                 // keep column parity so hexes stay aligned
+  const nc=new Map();
+  for(const [k,v] of cells){ const [c,r]=k.split(',').map(Number);
+    if(c>=shiftC&&c<=maxC&&r>=minR&&r<=maxR) nc.set((c-shiftC)+','+(r-minR),v); }
+  cells=nc; grid.cols=maxC-shiftC+1; grid.rows=maxR-minR+1;
+  $('cols').value=grid.cols; $('rows').value=grid.rows;
+  sel=null; selRange=null; draw();
+});
+$('clearSel').addEventListener('click',()=>{ sel=null; selRange=null; draw(); });
+
+// ---- controls ----
+function setTemplate(src){ const im=new Image(); im.onload=()=>{
+  tmplImg=im;
+  const fit=worldW()/im.width; tmpl.scale=fit; tmpl.x=0; tmpl.y=0;   // auto-fit width to the grid
+  $('tmplScale').value=Math.round(fit*100); $('vScale').textContent=Math.round(fit*100)+'%'; $('tmplX').value=0; $('tmplY').value=0;
+  draw();
+}; im.src=src; }
+$('tmpl').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=ev=>setTemplate(ev.target.result);rd.readAsDataURL(f);});
+// paste an image from the clipboard (Ctrl+V / Cmd+V) as the template
+window.addEventListener('paste',e=>{
+  const items=(e.clipboardData||window.clipboardData)?.items; if(!items) return;
+  for(const it of items){
+    if(it.type && it.type.indexOf('image')===0){
+      const f=it.getAsFile(); if(!f) continue;
+      const rd=new FileReader(); rd.onload=ev=>setTemplate(ev.target.result); rd.readAsDataURL(f);
+      e.preventDefault(); return;
+    }
+  }
+});
+$('tileFill').addEventListener('input',e=>{tileFill=+e.target.value/100;$('vFill').textContent=e.target.value+'%';draw();});
+document.querySelectorAll('.tool-btns button[data-tool]').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;document.querySelectorAll('.tool-btns button[data-tool]').forEach(x=>x.classList.toggle('active',x===b)); recenterSel=null;});
+function setLayer(l){ layer=l; document.querySelectorAll('.layer-btns button').forEach(x=>x.classList.toggle('active',x.dataset.layer===l)); }
+document.querySelectorAll('.layer-btns button').forEach(b=>b.onclick=()=>setLayer(b.dataset.layer));
+$('cols').addEventListener('input',e=>{grid.cols=Math.max(2,+e.target.value||2);draw();});
+$('rows').addEventListener('input',e=>{grid.rows=Math.max(2,+e.target.value||2);draw();});
+$('hexSize').addEventListener('input',e=>{ zoomTo(+e.target.value); });
+$('showGrid').addEventListener('change',e=>{showGrid=e.target.checked;draw();});
+$('showRuler').addEventListener('change',e=>{showRuler=e.target.checked;draw();});
+$('clearMap').addEventListener('click',()=>{if(confirm('Remove every placed hex?')){pushFull();cells.clear();draw();}});
+$('tmplOp').addEventListener('input',e=>{tmpl.op=+e.target.value/100;$('vOp').textContent=e.target.value+'%';draw();});
+$('tmplScale').addEventListener('input',e=>{tmpl.scale=+e.target.value/100;$('vScale').textContent=e.target.value+'%';draw();});
+$('tmplX').addEventListener('input',e=>{tmpl.x=+e.target.value;draw();});
+$('tmplY').addEventListener('input',e=>{tmpl.y=+e.target.value;draw();});
+$('tmplTop').addEventListener('change',e=>{tmpl.top=e.target.checked;draw();});
+
+// ---- save / load / export ----
+function serializeProject(){                    // v3: dictionary of tile names + integer ids + 60°-step rotations
+  const dict=[], id=new Map();
+  const D=name=>{ let i=id.get(name); if(i===undefined){ i=dict.length; dict.push(name); id.set(name,i); } return i; };
+  const serList=arr=>arr.map(o=>[D(o.t.base), Math.round((o.rot||0)/(Math.PI/3))%6]);
+  const cs=[];
+  for(const [k,v] of cells) cs.push([k, v.base?D(v.base.base):-1, serList(v.lines), serList(v.features), v.ox||0, v.oy||0, v.sc||1, v.hue||0, (v.sat===undefined?1:v.sat)]);
+  return {version:3, grid:{...grid}, tmpl:{...tmpl,hasImg:!!tmplImg}, dict, cells:cs};
+}
+function applyProject(d){
+  if(!tiles.length){alert('Load the tile folder first, then open the project.');return;}
+  Object.assign(grid,d.grid); $('cols').value=grid.cols;$('rows').value=grid.rows;$('hexSize').value=grid.hex;$('vHex').textContent=grid.hex;
+  cells.clear();
+  if(d.version>=3){
+    const dict=d.dict||[];
+    const conv=arr=>(arr||[]).map(([i,step])=>{ const t=index[dict[i]]; return t?{t,rot:(step||0)*(Math.PI/3)}:null; }).filter(Boolean);
+    for(const c of d.cells){ const [k,bi,ln,ft,ox,oy,sc,hue,sat]=c; cells.set(k,{base:bi>=0?index[dict[bi]]||null:null, lines:conv(ln), features:conv(ft), ox:ox||0, oy:oy||0, sc:sc||1, hue:hue||0, sat:(sat===undefined?1:sat)}); }
+  } else {                                       // v1/v2 backward compatibility (object cells)
+    const conv=arr=>(arr||[]).map(x=>{ const n=typeof x==='string'?x:x.n, rot=typeof x==='string'?0:(x.rot||0), t=index[n]; return t?{t,rot}:null; }).filter(Boolean);
+    for(const [k,v] of d.cells){ cells.set(k,{base:v.base?index[v.base]||null:null, lines:conv(v.lines), features:conv(v.features), ox:v.ox||0, oy:v.oy||0}); }
+  }
+  cam.x=0; cam.y=0; markDirty(); draw();
+}
+$('saveBtn').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(serializeProject())],{type:'application/json'}),url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='falldin-hexmap.json';a.click();URL.revokeObjectURL(url);
+});
+$('loadProj').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=ev=>{try{applyProject(JSON.parse(ev.target.result));}catch(err){alert('Could not read project.');}};rd.readAsText(f);e.target.value='';});
+
+// ---- in-browser save states (localStorage) + autosave ----
+const LS_STATES='falldin_hex_states', LS_AUTO='falldin_hex_autosave';
+function getStates(){ try{ return JSON.parse(localStorage.getItem(LS_STATES))||{}; }catch(e){ return {}; } }
+function setStates(o){ try{ localStorage.setItem(LS_STATES,JSON.stringify(o)); }catch(e){ alert('Browser storage is full or blocked — use the file Save instead.'); } }
+function refreshSlots(){ const sel=$('stateSlots'); if(!sel) return; const st=getStates(), cur=sel.value; sel.innerHTML='';
+  const names=Object.keys(st).sort(); if(!names.length){ const o=document.createElement('option'); o.textContent='— no saved states —'; o.value=''; sel.appendChild(o); }
+  for(const n of names){ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); } if(cur) sel.value=cur; }
+$('saveState').addEventListener('click',()=>{
+  const name=(($('slotName').value||'').trim())||('state '+new Date().toLocaleString());
+  const st=getStates(); st[name]=serializeProject(); setStates(st); refreshSlots(); $('stateSlots').value=name; $('slotName').value=''; flash('Saved “'+name+'”');
+});
+$('loadState').addEventListener('click',()=>{ const name=$('stateSlots').value; const st=getStates(); if(st[name]){ applyProject(st[name]); flash('Loaded “'+name+'”'); } });
+$('delState').addEventListener('click',()=>{ const name=$('stateSlots').value; if(!name)return; const st=getStates(); delete st[name]; setStates(st); refreshSlots(); });
+let autoTimer=null;
+function scheduleAutosave(){ if(!$('autosave')||!$('autosave').checked||!tiles.length||!needAutosave) return; clearTimeout(autoTimer);
+  autoTimer=setTimeout(()=>{ try{ localStorage.setItem(LS_AUTO,JSON.stringify(serializeProject())); needAutosave=false; }catch(e){} },1500); }
+function flash(msg){ const s=$('status'); if(!s) return; const old=s.textContent; s.textContent=msg; s.style.color='var(--gold)'; setTimeout(()=>{ s.style.color=''; updateStatus(); },1400); }
+refreshSlots();
+$('pngBtn').addEventListener('click',()=>{
+  if(!cells.size){ alert('Nothing to export yet.'); return; }
+  const cv=composeFull(null,120e6);
+  cv.toBlob(b=>{ if(!b){ alert('Map too large to export in one image — export a crop instead.'); return; }
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='falldin-hexmap.png'; a.click(); });
+});
+
+// ---- stress test ----
+async function runBenchmark(){
+  if(!tiles.length){ alert('Load the tile folder first.'); return; }
+  const out=$('benchOut'); out.style.display='block'; out.textContent='Preparing…';
+  const pool=(cats['Plains']||cats['Base']||tiles).filter(t=>!t.dir); if(!pool.length){ out.textContent='No terrain tiles found.'; return; }
+  await Promise.all(pool.slice(0,24).map(t=>new Promise(res=>ensureImg(t,()=>res()))));
+  const decoded=pool.filter(t=>t.img); if(!decoded.length){ out.textContent='Tiles could not decode.'; return; }
+  const pick=()=>decoded[(Math.random()*decoded.length)|0];
+  const savedCells=cells, sc=grid.cols, sr=grid.rows, scx=cam.x, scy=cam.y;
+  cam.x=0; cam.y=0;
+  const sizes=[[50,50],[100,100],[200,200],[400,300],[600,600],[1000,1000]];
+  const pad=(s,n)=>String(s).padEnd(n);
+  const lines=['grid        tiles      frame   ~fps','──────────────────────────────────'];
+  out.textContent=lines.join('\n');
+  try{
+    for(const [gc,gr] of sizes){
+      grid.cols=gc; grid.rows=gr;
+      const tmp=new Map();
+      for(let c=0;c<gc;c++)for(let r=0;r<gr;r++){ if(Math.random()<0.7) tmp.set(c+','+r,{base:pick(),lines:[],features:[]}); }
+      cells=tmp;
+      let ms=0; for(let i=0;i<6;i++){ const t0=performance.now(); render(); ms+=performance.now()-t0; } ms/=6;
+      lines.push(pad(gc+'×'+gr,12)+pad(tmp.size.toLocaleString(),11)+pad(ms.toFixed(1)+'ms',8)+Math.round(1000/ms));
+      out.textContent=lines.join('\n'); await new Promise(r=>setTimeout(r,15));
+    }
+  }catch(err){ lines.push('error: '+err.message); }
+  cells=savedCells; grid.cols=sc; grid.rows=sr; cam.x=scx; cam.y=scy;
+  $('cols').value=sc; $('rows').value=sr;
+  lines.push('','Frame time stays ~flat regardless of map size —','only the on-screen hexes are drawn (viewport','culling). Memory no longer scales with the map.');
+  out.textContent=lines.join('\n'); draw();
+}
+$('benchBtn').addEventListener('click',runBenchmark);
+$('rotL').addEventListener('click',()=>rotBrush(-1));
+$('rotR').addEventListener('click',()=>rotBrush(1));
+
+// ---- high-resolution render (swap 72dpi for HD assets of the same name) ----
+$('hdFolder').addEventListener('change',e=>{
+  // 300 DPI ships as .webp — accept both, and here prefer the LARGEST copy of each name
+  const files=[...e.target.files].filter(f=>/\.(png|webp)$/i.test(f.name));
+  if(!files.length){ alert('No tile images (.png/.webp) found in that folder.'); return; }
+  hdFiles={}; hdCache={}; const seen=new Map();
+  for(const f of files){
+    const path=f.webkitRelativePath||f.name;
+    if(/Extras\s*-\s*Copy/i.test(path)) continue;
+    const base=f.name.replace(/\.(png|webp)$/i,''), d=dpiOf(path), cur=seen.get(base);
+    if(cur && cur.dpi>=d) continue;                 // keep the highest DPI available
+    seen.set(base,{f,dpi:d});
+  }
+  for(const [base,rec] of seen) hdFiles[base]=rec.f;
+  const dpis=[...new Set([...seen.values()].map(v=>v.dpi).filter(Boolean))].sort((a,b)=>a-b).join('/');
+  flash('HD assets ready: '+Object.keys(hdFiles).length+' tiles'+(dpis?' · '+dpis+' DPI':''));
+});
+function loadHD(base){ return new Promise(res=>{ if(hdCache[base]) return res(hdCache[base]); const f=hdFiles[base]; if(!f) return res(null);
+  const im=new Image(); im.onload=()=>{ hdCache[base]=im; res(im); }; im.onerror=()=>res(null); im.src=URL.createObjectURL(f); }); }
+// bounds = null for the whole map, or a {minC,minR,maxC,maxR} crop range.
+// A cropped region usually fits at FULL asset resolution, where a whole map has to be scaled down.
+async function renderHD(bounds){
+  if(!Object.keys(hdFiles).length){ alert('Load a high-DPI tile folder first (e.g. "Assets - 300 DPI (Print)").'); return; }
+  const inB=(c,r)=>!bounds||(c>=bounds.minC&&c<=bounds.maxC&&r>=bounds.minR&&r<=bounds.maxR);
+  const list=[];
+  for(const [k,cell] of cells){ const i=k.indexOf(','), c=+k.slice(0,i), r=+k.slice(i+1); if(inB(c,r)) list.push({c,r,cell}); }
+  if(!list.length){ alert(bounds?'No placed hexes inside the selection.':'Place some hexes first.'); return; }
+  flash('Rendering… loading HD tiles');
+  const used=new Set();
+  for(const {cell} of list){ if(cell.base)used.add(cell.base.base); for(const o of cell.lines)used.add(o.t.base); for(const o of cell.features)used.add(o.t.base); }
+  const imgs={}; let missing=0;
+  await Promise.all([...used].map(async b=>{ const im=await loadHD(b); if(im) imgs[b]=im; else missing++; }));
+  let hdW=0,hdH=0; for(const b in imgs){ hdW=imgs[b].width; hdH=imgs[b].height; break; }
+  if(!hdW){ alert('None of those tiles were found in the HD folder — names may not match.'); return; }
+  // full-resolution layout, then measure just the region we're exporting
+  const ctrFull=(c,r)=>({ x:c*hdW*0.75+hdW/2, y:r*hdH+hdH/2+((c&1)?hdH/2:0) });
+  const c0=bounds?bounds.minC:0, r0=bounds?bounds.minR:0, c1=bounds?bounds.maxC:grid.cols-1, r1=bounds?bounds.maxR:grid.rows-1;
+  let X0=1e9,Y0=1e9,X1=-1e9,Y1=-1e9;
+  for(let c=c0;c<=c1;c++)for(let r=r0;r<=r1;r++){ const p=ctrFull(c,r);
+    X0=Math.min(X0,p.x-hdW/2);X1=Math.max(X1,p.x+hdW/2);Y0=Math.min(Y0,p.y-hdH/2);Y1=Math.max(Y1,p.y+hdH/2); }
+  const Wf=Math.max(1,X1-X0), Hf=Math.max(1,Y1-Y0);
+  const MAXSIDE=14000, MAXAREA=120e6;
+  const k=Math.min(1, MAXSIDE/Wf, MAXSIDE/Hf, Math.sqrt(MAXAREA/(Wf*Hf)));
+  const outW=Math.ceil(Wf*k), outH=Math.ceil(Hf*k);
+  const hw=hdW*k, hh=hdH*k, dw=hw*tileFill, dh=hh*tileFill;
+  const cv=document.createElement('canvas'); cv.width=outW; cv.height=outH; const cx=cv.getContext('2d');
+  const order=list.map(({c,r,cell})=>{ const p=ctrFull(c,r); return {cell, x:(p.x-X0)*k, y:(p.y-Y0)*k}; })
+                  .sort((a,b)=>(a.y-b.y)||(a.x-b.x));
+  const one=(im,x,y,rot,sc)=>{ if(!im)return; const w=dw*sc, h=dh*sc;
+    if(rot){cx.save();cx.translate(x,y);cx.rotate(rot);cx.drawImage(im,-w/2,-h/2,w,h);cx.restore();} else cx.drawImage(im,x-w/2,y-h/2,w,h); };
+  for(const {cell,x,y} of order){
+    const sc=cell.sc||1, px=x+(cell.ox||0)*(hw/hexW()), py=y+(cell.oy||0)*(hh/hexH());
+    const fl=cellFilter(cell); if(fl!=='none') cx.filter=fl;
+    if(cell.base) one(imgs[cell.base.base]||cell.base.img, px, py, 0, sc);
+    for(const o of cell.lines) one(imgs[o.t.base]||o.t.img, px, py, o.rot, sc);
+    for(const o of cell.features) one(imgs[o.t.base]||o.t.img, px, py, o.rot, sc);
+    if(fl!=='none') cx.filter='none';
+  }
+  cv.toBlob(b=>{ if(!b){ alert('Render too large for the browser — crop a smaller region, or use the 150 DPI folder.'); return; }
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download=bounds?'falldin-region-hd.png':'falldin-render.png'; a.click();
+    flash((bounds?'Region ':'Map ')+'rendered '+outW+'×'+outH+'px'
+      +(k<1?' (scaled to fit)':' (full '+hdW+'px/hex)')+(missing?(' · '+missing+' tiles not in HD set'):'')); }, 'image/png');
+}
+$('renderHD').addEventListener('click',()=>{ renderHD(null).catch(err=>alert('Render failed: '+err.message)); });
+$('renderSelHD').addEventListener('click',()=>{
+  if(!selRange){ alert('Pick the ⛶ Crop tool and drag a box over the region first.'); return; }
+  renderHD(selRange).catch(err=>alert('Render failed: '+err.message));
+});
+
+// ---- Stamps: read-only library (authored in the Stamp Creator) ----
+let stamps=[], activeStamp=null;
+const LS_LIB='falldin_stamp_lib_v3';                 // shared with stamp-creator.html
+function loadStamps(){ try{ stamps=JSON.parse(localStorage.getItem(LS_LIB))||[]; }catch(e){ stamps=[]; } renderStampList(); }
+function renderStampList(){
+  const wrap=$('stampList'); if(!wrap) return; wrap.innerHTML='';
+  if(!stamps.length){ wrap.innerHTML='<div class="hintline" style="grid-column:1/3;">No stamps yet — build them in the Stamp Creator, or import a file.</div>'; return; }
+  stamps.forEach(st=>{
+    const d=document.createElement('div'); d.className='stamp-item'+(st===activeStamp?' sel':'');
+    d.title=st.name+' — '+st.cells.length+' hex · click, then click the map to place';
+    d.innerHTML='<img src="'+(st.thumb||'')+'"><div class="nm">'+st.name+'</div>';
+    d.onclick=()=>{ activeStamp=st; tool='stamp';
+      document.querySelectorAll('.tool-btns button[data-tool]').forEach(x=>x.classList.toggle('active',x.dataset.tool==='stamp'));
+      renderStampList(); };
+    wrap.appendChild(d);
+  });
+}
+// tolerant reader: v3 stamps store [name, rotStep]; older ones stored {n, rot}
+function readOv(x){ return Array.isArray(x) ? {n:x[0], rot:(x[1]||0)*(Math.PI/3)} : {n:x.n, rot:x.rot||0}; }
+function placeStamp(tc,tr){
+  if(!activeStamp) return; if(!tiles.length){ alert('Load the tile folder first.'); return; }
+  beginOp(); const o=hexCenter(tc,tr); let missing=0;
+  for(const c of activeStamp.cells){
+    const th=pixelToHex(o.x+c.dxu*hexW(), o.y+c.dyu*hexH()); if(!th) continue;
+    const key=th.join(','); touch(key); let cell=cells.get(key); if(!cell){cell={base:null,lines:[],features:[]};cells.set(key,cell);}
+    if(c.base){ if(index[c.base]) cell.base=index[c.base]; else missing++; }
+    if(c.ox||c.oy){ cell.ox=c.ox; cell.oy=c.oy; }
+    if(c.sc && c.sc!==1) cell.sc=c.sc;                 // enlarged assets from the Stamp Creator
+    if(c.hue) cell.hue=c.hue;                          // recolouring from the Stamp Creator
+    if(c.sat!==undefined && c.sat!==1) cell.sat=c.sat;
+    for(const raw of (c.lines||[])){ const {n,rot}=readOv(raw); const t=index[n];
+      if(!t){ missing++; continue; } if(!cell.lines.some(x=>x.t===t&&x.rot===rot)) cell.lines.push({t,rot}); }
+    for(const raw of (c.features||[])){ const {n,rot}=readOv(raw); const t=index[n];
+      if(!t){ missing++; continue; } if(!cell.features.some(x=>x.t===t&&x.rot===rot)) cell.features.push({t,rot}); }
+  }
+  commitOp(); draw();
+  if(missing) flash(missing+' tile(s) in that stamp are not in the loaded folder');
+}
+$('reloadStamps').addEventListener('click',()=>{ loadStamps(); flash('Library reloaded — '+stamps.length+' stamp(s)'); });
+$('importStamps').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader(); rd.onload=ev=>{ try{
+    const d=JSON.parse(ev.target.result);
+    const add=(d.format==='falldin-stamp-pack')?(d.stamps||[]):(d.format==='falldin-stamp'?[d]:[]);
+    if(!add.length){ alert('Not a Falldin stamp file.'); return; }
+    const lib=(()=>{ try{ return JSON.parse(localStorage.getItem(LS_LIB))||[]; }catch(_){ return []; } })();
+    for(const st of add){ const at=lib.findIndex(x=>x.name===st.name); if(at>=0) lib[at]=st; else lib.push(st); }
+    try{ localStorage.setItem(LS_LIB,JSON.stringify(lib)); }catch(_){ alert('Storage full — stamps loaded for this session only.'); }
+    stamps=lib; renderStampList(); flash('Imported '+add.length+' stamp(s)');
+  }catch(err){ alert('Could not read that file.'); } };
+  rd.readAsText(f); e.target.value='';
+});
+loadStamps();
+
+// ---- reset everything (double confirmation) ----
+$('resetBtn').addEventListener('click',()=>{
+  if(!confirm('Reset the map? This erases every placed hex.')) return;
+  if(!confirm('Are you sure? This cannot be undone.')) return;
+  pushFull(); cells.clear(); sel=null; selRange=null; lassoPts=null; brushStep=0; const v=$('vRot'); if(v) v.textContent='0°';
+  draw(); flash('Map reset');
+});
+
+// ---- zoom (hex size is the zoom level; 64px = 100%) ----
+const ZMIN=6, ZMAX=160, ZBASE=64;
+function updateZoomLabel(){
+  const z=$('zoomPct'); if(z) z.textContent=Math.round(grid.hex/ZBASE*100)+'%';
+  const hs=$('hexSize'); if(hs) hs.value=Math.round(grid.hex);
+  const vh=$('vHex'); if(vh) vh.textContent=Math.round(grid.hex);
+}
+function zoomTo(newHex, ax, ay){                 // ax/ay = screen anchor to keep fixed (defaults to viewport centre)
+  newHex=Math.max(ZMIN, Math.min(ZMAX, newHex));
+  if(newHex===grid.hex){ updateZoomLabel(); return; }
+  if(ax===undefined){ ax=board.width/2; ay=board.height/2; }
+  const ratio=newHex/grid.hex;
+  cam.x=(cam.x+ax)*ratio-ax; cam.y=(cam.y+ay)*ratio-ay;   // world scales with hex size, so keep the anchor put
+  grid.hex=newHex; updateZoomLabel(); draw();
+}
+function zoomBy(f, ax, ay){ zoomTo(grid.hex*f, ax, ay); }
+function zoomFit(){
+  const ratio=Math.min(board.width/Math.max(1,worldW()), board.height/Math.max(1,worldH()))*0.95;
+  grid.hex=Math.max(ZMIN, Math.min(ZMAX, grid.hex*ratio));
+  cam.x=(worldW()-board.width)/2; cam.y=(worldH()-board.height)/2;   // centre the whole grid
+  updateZoomLabel(); draw();
+}
+$('zoomIn').onclick=()=>zoomBy(1.2);
+$('zoomOut').onclick=()=>zoomBy(1/1.2);
+$('zoomFit').onclick=zoomFit;
+
+// ---- board sizing (viewport) ----
+function fitBoard(){ board.width=stage.clientWidth||900; board.height=stage.clientHeight||700; draw(); }
+window.addEventListener('resize',fitBoard);
+if(window.ResizeObserver) new ResizeObserver(fitBoard).observe(stage);
+fitBoard(); updateZoomLabel();
+</script>
