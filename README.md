@@ -3,6 +3,19 @@
 A two-tool browser suite for building hex maps from the *World Map Hex Tiles* asset pack:
 draw the map, and author reusable multi-hex **stamps** to speed it up.
 
+## Examples
+
+Regional maps of *Aska Island* built and HD-rendered with Falldin hexmapper:
+
+| | |
+|:---:|:---:|
+| ![North Aska](examples/aska-north.jpg) | ![Middle Aska](examples/aska-middle.jpg) |
+| **North Aska** | **Middle Aska** |
+| ![South Aska](examples/aska-south.jpg) | ![Shallowdeep](examples/shallowdeep.jpg) |
+| **South Aska** | **Shallowdeep** |
+
+*(Shown at web resolution; the tool exports these at full print resolution — the originals are ~120 megapixels each.)*
+
 The tool is compatible with Hex tile assets made by 2minutetabletop 
 
 https://2minutetabletop.com/world-map-hex-tiles-assets/ 
