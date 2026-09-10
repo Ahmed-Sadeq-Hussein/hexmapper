@@ -66,6 +66,7 @@ kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;
   <input type="file" id="tmpl" accept="image/*">
   <a class="filebtn" href="stamp-creator.html" target="_blank" style="text-decoration:none;">✧ Stamp Creator</a>
   <span id="status" style="font-size:0.72rem;color:var(--ink-dim);margin-left:0.4rem;">0 hexes · 0 tiles</span>
+  <span style="font-size:0.66rem;color:var(--gold);opacity:0.7;margin-left:0.5rem;letter-spacing:0.5px;">v3.1.1</span>
   <span class="spacer"></span>
   <button id="saveBtn">💾 Save</button>
   <label class="filebtn" for="loadProj">Open</label>
@@ -168,10 +169,21 @@ kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;
     <div class="pgroup">
       <h2>Crop / Region</h2>
       <p class="hintline" style="margin-bottom:0.5rem;">Pick the <b>⛶ Crop</b> tool and drag a box over the hexes you want.</p>
-      <button id="exportSel" style="width:100%;margin-bottom:0.4rem;">🖼 Export Selection PNG</button>
+      <button id="exportSel" style="width:100%;margin-bottom:0.4rem;">🖼 Export Selection</button>
       <button id="renderSelHD" style="width:100%;margin-bottom:0.4rem;border-color:var(--gold);color:var(--gold);">🎨 Render Selection in HD</button>
       <button id="cropSel" style="width:100%;margin-bottom:0.4rem;">✂ Crop Map to Selection</button>
       <button id="clearSel" style="width:100%;">Clear Selection</button>
+      <label class="toggle-row" style="margin-top:0.5rem;"><input type="checkbox" id="jpegExport">Export as JPEG <span style="color:var(--ink-dim);">(smaller file)</span></label>
+      <div class="ctrl" id="jpegQRow" style="display:none;"><label>JPEG quality <span class="val" id="vJpegQ">85%</span></label><input type="range" id="jpegQ" min="50" max="95" value="85"></div>
+    </div>
+
+    <div class="pgroup">
+      <h2>Foundry VTT Export</h2>
+      <p class="hintline" style="margin-bottom:0.5rem;">Saves the <b>crop selection</b> (or whole map) as an image <b>+ a ready-to-import scene JSON</b>. Foundry ▸ Scenes ▸ Import Data — grid lines up 1:1 (size = hex height, the fix for the old misalignment).</p>
+      <div class="ctrl"><label>Resolution <span class="val" id="vFvttPx">150 px/hex</span></label><input type="range" id="fvttPx" min="40" max="300" value="150"></div>
+      <button id="fvttExport" style="width:100%;border-color:var(--gold);color:var(--gold);margin-bottom:0.4rem;">⬡ Export Scene JSON (Import Data)</button>
+      <button id="uvttExport" style="width:100%;border-color:var(--gold);color:var(--gold);">⬡ Export .dd2vtt (crop → Universal Import)</button>
+      <p class="hintline" style="margin-top:0.4rem;"><b>.dd2vtt</b> needs a crop selection; the image is baked in for the Universal Battlemap Import module. It imports as a square grid at the hex-height size — flip to <i>Hex Columns (Odd)</i> after and it aligns.</p>
     </div>
 
     <div class="pgroup">
@@ -631,7 +643,7 @@ function rangeBBox(rg){ let X0=1e9,Y0=1e9,X1=-1e9,Y1=-1e9;
 $('exportSel').addEventListener('click',()=>{
   if(!selRange){ alert('Pick the ⛶ Crop tool and drag a box first.'); return; }
   const cv=composeFull(selRange,120e6);
-  const a=document.createElement('a'); a.href=cv.toDataURL('image/png'); a.download='falldin-region.png'; a.click();
+  saveCanvas(cv,'falldin-region');
 });
 $('cropSel').addEventListener('click',()=>{
   if(!selRange){ alert('Pick the ⛶ Crop tool and drag a box first.'); return; }
@@ -729,12 +741,149 @@ function scheduleAutosave(){ if(!$('autosave')||!$('autosave').checked||!tiles.l
   autoTimer=setTimeout(()=>{ try{ localStorage.setItem(LS_AUTO,JSON.stringify(serializeProject())); needAutosave=false; }catch(e){} },1500); }
 function flash(msg){ const s=$('status'); if(!s) return; const old=s.textContent; s.textContent=msg; s.style.color='var(--gold)'; setTimeout(()=>{ s.style.color=''; updateStatus(); },1400); }
 refreshSlots();
+// ---- shared export helper: honours the JPEG toggle (PNG keeps transparency; JPEG gets an opaque background) ----
+function jpegOn(){ const e=$('jpegExport'); return !!(e&&e.checked); }
+function jpegQ(){ const e=$('jpegQ'); return (e?+e.value:85)/100; }
+const VOID_BG='#0E1720';               // colour painted behind the map in JPEG / Foundry exports
+function saveCanvas(cv, baseName, done){
+  if(jpegOn()){
+    const out=document.createElement('canvas'); out.width=cv.width; out.height=cv.height;
+    const ox=out.getContext('2d'); ox.fillStyle=VOID_BG; ox.fillRect(0,0,out.width,out.height); ox.drawImage(cv,0,0);
+    out.toBlob(b=>{ if(!b){ alert('Too large to export in one image — crop a smaller region.'); return; }
+      const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=baseName+'.jpg'; a.click(); done&&done('jpg'); }, 'image/jpeg', jpegQ());
+  } else {
+    cv.toBlob(b=>{ if(!b){ alert('Too large to export in one image — crop a smaller region.'); return; }
+      const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=baseName+'.png'; a.click(); done&&done('png'); }, 'image/png');
+  }
+}
 $('pngBtn').addEventListener('click',()=>{
   if(!cells.size){ alert('Nothing to export yet.'); return; }
-  const cv=composeFull(null,120e6);
-  cv.toBlob(b=>{ if(!b){ alert('Map too large to export in one image — export a crop instead.'); return; }
-    const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='falldin-hexmap.png'; a.click(); });
+  saveCanvas(composeFull(null,120e6),'falldin-hexmap');
 });
+
+// ---- shared: render a region (crop or whole map) to an opaque, corner-flush canvas ----
+// Returns the canvas plus the ACTUAL on-image hex dimensions after any fit-scaling.
+// KEY FACT: for flat-top / columnar hexes, Foundry's grid "size" is the hex HEIGHT
+// (the flat-to-flat neighbour distance), NOT the width. All 6 neighbours sit one
+// flat-to-flat apart, and that distance is the grid pitch. Width = size*2/√3.
+function renderAligned(bounds, px){
+  const MAXAREA=120e6, MAXSIDE=16000;                    // stay inside browser + Foundry WebGL limits
+  const savedHex=grid.hex; grid.hex=px;                  // render at the requested px/hex
+  const c0=bounds?bounds.minC:0, r0=bounds?bounds.minR:0, c1=bounds?bounds.maxC:grid.cols-1, r1=bounds?bounds.maxR:grid.rows-1;
+  let X0=1e9,Y0=1e9,X1=-1e9,Y1=-1e9;
+  for(let c=c0;c<=c1;c++)for(let r=r0;r<=r1;r++){ const ctr=hexCenter(c,r);
+    X0=Math.min(X0,ctr.x-hexW()/2);X1=Math.max(X1,ctr.x+hexW()/2);Y0=Math.min(Y0,ctr.y-hexH()/2);Y1=Math.max(Y1,ctr.y+hexH()/2); }
+  const Wf=Math.max(1,X1-X0), Hf=Math.max(1,Y1-Y0);
+  const s=Math.min(1, Math.sqrt(MAXAREA/(Wf*Hf)), MAXSIDE/Wf, MAXSIDE/Hf);   // final scale actually used
+  const cv=composeFull(bounds, s*s*Wf*Hf);               // force composeFull's internal scale to exactly s
+  grid.hex=savedHex; draw();                             // restore the on-screen zoom
+  // opaque background so the void reads as a filled colour, not transparency
+  const out=document.createElement('canvas'); out.width=cv.width; out.height=cv.height;
+  const ox=out.getContext('2d'); ox.fillStyle=VOID_BG; ox.fillRect(0,0,out.width,out.height); ox.drawImage(cv,0,0);
+  return { canvas: out, s, hexHpx: px*s*(194/224), hexWpx: px*s, cols:c1-c0+1, rows:r1-r0+1 };
+}
+
+// ---- Foundry VTT export (Option B): aligned image + a ready-to-import scene JSON ----
+function exportFoundry(){
+  if(!cells.size){ alert('Nothing to export yet.'); return; }
+  const bounds = selRange || null;                       // crop if one is drawn, else whole map
+  const px = Math.max(20, Math.min(400, (($('fvttPx')&&+$('fvttPx').value)||150)));
+  const R = renderAligned(bounds, px); const out=R.canvas;
+  const gridSize = Math.round(R.hexHpx);                 // === Foundry grid size for columnar hexes
+  const ext = jpegOn()?'jpg':'png';
+  const baseName = bounds?'falldin-foundry-region':'falldin-foundry';
+  const imgFile  = baseName+'.'+ext;
+  // ---- Foundry V12+ Scene document (drop-in for Scenes ▸ Import Data) ----
+  const scene = {
+    name: 'Falldin'+(bounds?(' Region '+R.cols+'×'+R.rows):' Hex Map'),
+    navigation: true,
+    active: false,
+    width:  out.width,
+    height: out.height,
+    padding: 0,                                          // grid origin = top-left of the image
+    backgroundColor: VOID_BG,
+    background: { src: imgFile, offsetX: 0, offsetY: 0, scaleX: 1, scaleY: 1, rotation: 0, tint: null },
+    grid: {
+      type: 4,                                           // CONST.GRID_TYPES.HEXODDQ (flat-top, odd cols down)
+      size: gridSize,                                    // hex HEIGHT in px — the fix
+      distance: 12,                                      // 1 hex = 12 mi (Falldin scale)
+      units: 'mi',
+      color: '#000000',
+      alpha: 0.25,
+      thickness: 1
+    },
+    initial: null,
+    tokenVision: false,
+    fogExploration: false,
+    flags: { 'falldin-hexmapper': { version: '3.1.1', pxPerHex: Math.round(R.hexWpx), hexHeightPx: gridSize } }
+  };
+  saveCanvas(out, baseName, ()=>{                        // 1) image, then 2) scene JSON
+    const b=new Blob([JSON.stringify(scene,null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=baseName+'.scene.json'; a.click();
+  });
+  flash('Foundry scene: '+out.width+'×'+out.height+'px · grid '+gridSize+'px (hex height)');
+  alert(
+    'FOUNDRY VTT — scene JSON (Scenes ▸ Import Data)\n'+
+    '==============================================\n'+
+    'Saved: '+imgFile+'  +  '+baseName+'.scene.json\n'+
+    'Grid: Hexagonal Columns (Odd) · size '+gridSize+'px (= hex height) · 12 mi/hex\n\n'+
+    ' 1. Upload '+imgFile+' into your world; 2. Scenes ▸ Import Data ▸ the .scene.json;\n'+
+    ' 3. If the background is blank, point the scene’s Background at the uploaded image.');
+}
+$('fvttExport').addEventListener('click',exportFoundry);
+
+// ---- Universal VTT export (.dd2vtt) — for the "Universal Battlemap Import" module ----
+// The UVTT/dd2vtt format is SQUARE-grid only (it has no hex concept), so this imports
+// as a square grid. We set pixels_per_grid = the hex HEIGHT, so after import you can
+// flip the scene to Hexagonal Columns (Odd) at the SAME size and it lines up 1:1.
+function exportUVTT(){
+  if(!cells.size){ alert('Nothing to export yet.'); return; }
+  if(!selRange){ alert('Pick the ⛶ Crop tool and drag a box first — the .dd2vtt is built from the selected area.'); return; }
+  const px = Math.max(20, Math.min(400, (($('fvttPx')&&+$('fvttPx').value)||150)));
+  const R = renderAligned(selRange, px); const out=R.canvas;
+  const pph = Math.round(R.hexHpx);                      // square grid size = hex height
+  const dataURL = jpegOn() ? out.toDataURL('image/jpeg', jpegQ()) : out.toDataURL('image/png');
+  const b64 = dataURL.slice(dataURL.indexOf(',')+1);     // UVTT stores raw base64 (no data: prefix)
+  const uvtt = {
+    format: 0.3,
+    resolution: {
+      map_origin: { x: 0, y: 0 },
+      map_size:   { x: out.width/pph, y: out.height/pph },
+      pixels_per_grid: pph
+    },
+    line_of_sight: [],
+    objects_line_of_sight: [],
+    portals: [],
+    environment: { baked_lighting: true, ambient_light: 'ffffffff' },
+    lights: [],
+    image: b64
+  };
+  const blob=new Blob([JSON.stringify(uvtt)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='falldin-region-'+R.cols+'x'+R.rows+'.dd2vtt'; a.click();
+  flash('.dd2vtt saved: '+out.width+'×'+out.height+'px · '+pph+'px/grid');
+  alert(
+    'UNIVERSAL VTT (.dd2vtt) — '+R.cols+'×'+R.rows+' hexes\n'+
+    '==========================================\n'+
+    'Image embedded · '+out.width+'×'+out.height+'px · pixels/grid: '+pph+'\n\n'+
+    'Import it with the Universal Battlemap Import module — it builds a scene\n'+
+    'with the image baked in (no separate upload needed).\n\n'+
+    'Heads-up: .dd2vtt is a SQUARE-grid format — it can’t carry a hex grid, so it\n'+
+    'imports as a square grid at '+pph+'px. That size is the hex HEIGHT, so just open\n'+
+    'the scene config and set Grid Type = Hexagonal Columns (Odd), Distance = 12,\n'+
+    'Units = mi (leave size at '+pph+') and the hexes line up 1:1.\n\n'+
+    'Want the grid to import as hex with zero fixups? Use the ⬡ scene JSON export\n'+
+    'above instead (Scenes ▸ Import Data).');
+}
+$('uvttExport').addEventListener('click',exportUVTT);
+
+// live labels for the export controls
+(function(){
+  const jq=$('jpegQ'), je=$('jpegExport'), fp=$('fvttPx');
+  if(je) je.addEventListener('change',()=>{ const row=$('jpegQRow'); if(row) row.style.display=je.checked?'':'none'; });
+  if(jq) jq.addEventListener('input',()=>{ const v=$('vJpegQ'); if(v) v.textContent=jq.value+'%'; });
+  if(fp) fp.addEventListener('input',()=>{ const v=$('vFvttPx'); if(v) v.textContent=fp.value+' px/hex'; });
+})();
 
 // ---- stress test ----
 async function runBenchmark(){
@@ -828,11 +977,9 @@ async function renderHD(bounds){
     for(const o of cell.features) one(imgs[o.t.base]||o.t.img, px, py, o.rot, sc);
     if(fl!=='none') cx.filter='none';
   }
-  cv.toBlob(b=>{ if(!b){ alert('Render too large for the browser — crop a smaller region, or use the 150 DPI folder.'); return; }
-    const a=document.createElement('a'); a.href=URL.createObjectURL(b);
-    a.download=bounds?'falldin-region-hd.png':'falldin-render.png'; a.click();
-    flash((bounds?'Region ':'Map ')+'rendered '+outW+'×'+outH+'px'
-      +(k<1?' (scaled to fit)':' (full '+hdW+'px/hex)')+(missing?(' · '+missing+' tiles not in HD set'):'')); }, 'image/png');
+  const label=(bounds?'Region ':'Map ')+'rendered '+outW+'×'+outH+'px'
+    +(k<1?' (scaled to fit)':' (full '+hdW+'px/hex)')+(missing?(' · '+missing+' tiles not in HD set'):'');
+  saveCanvas(cv, bounds?'falldin-region-hd':'falldin-render', ()=>flash(label));
 }
 $('renderHD').addEventListener('click',()=>{ renderHD(null).catch(err=>alert('Render failed: '+err.message)); });
 $('renderSelHD').addEventListener('click',()=>{
