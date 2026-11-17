@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Falldin hexmapper — Piece Creator</title>
+<style>
+:root{--bg:#0E1720;--surface:#162030;--surface2:#1D2C40;--border:#273D58;--ink:#CFC5A8;--ink-dim:#7A8FA0;--gold:#C9A84C;--radius:5px;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:Georgia,'Times New Roman',serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;padding:0.7rem 1.1rem;border-bottom:1px solid var(--border);background:var(--surface);}
+.topbar h1{font-size:1.1rem;font-weight:normal;}.topbar h1 em{color:var(--gold);font-style:italic;}
+.topbar .spacer{flex:1;}
+button,.filebtn{font-family:Georgia,serif;font-size:0.8rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border);border-radius:var(--radius);padding:0.38rem 0.7rem;cursor:pointer;white-space:nowrap;transition:border-color .15s,background .15s;}
+button:hover,.filebtn:hover{border-color:var(--gold);background:var(--surface);}
+button.active{border-color:var(--gold);color:var(--gold);background:var(--surface2);}
+button:disabled{opacity:0.4;cursor:default;}
+button.primary{border-color:var(--gold);color:var(--gold);}
+button.danger{border-color:#9b4030;color:#ffb0a0;}
+input[type=file]{display:none;}
+.workspace{display:flex;flex:1;min-height:0;}
+.palette{width:250px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0;}
+.cat-tabs{display:flex;flex-wrap:wrap;gap:0.25rem;padding:0.6rem;border-bottom:1px solid var(--border);max-height:40vh;overflow-y:auto;flex-shrink:0;}
+.cat-tabs button{font-size:0.66rem;padding:0.22rem 0.4rem;}
+.tile-scroll{flex:1;overflow-y:auto;padding:0.6rem;display:grid;grid-template-columns:repeat(3,1fr);gap:0.4rem;align-content:start;}
+.tile-thumb{position:relative;aspect-ratio:224/194;background:var(--surface2);border:1px solid var(--border);border-radius:3px;cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.tile-thumb img{width:100%;height:100%;object-fit:contain;}
+.tile-thumb:hover{border-color:var(--gold);}
+.tile-thumb.sel{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold);}
+.tile-thumb .dir{position:absolute;bottom:1px;right:2px;font-size:0.55rem;color:var(--gold);background:rgba(0,0,0,0.6);padding:0 2px;border-radius:2px;}
+.palette-empty{padding:1.4rem;font-size:0.8rem;color:var(--ink-dim);line-height:1.6;text-align:center;}
+.palette-empty strong{color:var(--gold);}
+.stage{flex:1;overflow:hidden;position:relative;background:repeating-linear-gradient(45deg,#0c141c 0 12px,#0e1720 12px 24px);}
+#board{display:block;cursor:crosshair;}
+.stagehint{position:absolute;left:12px;bottom:10px;font-size:0.72rem;color:var(--ink-dim);background:rgba(14,23,32,0.85);border:1px solid var(--border);border-radius:var(--radius);padding:0.3rem 0.55rem;pointer-events:none;max-width:70%;}
+.panel{width:272px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface);padding:1rem;overflow-y:auto;display:flex;flex-direction:column;gap:1.05rem;}
+.pgroup h2{font-size:0.64rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold);font-weight:normal;margin-bottom:0.6rem;border-bottom:1px solid var(--border);padding-bottom:0.35rem;}
+.ctrl{margin-bottom:0.65rem;}.ctrl:last-child{margin-bottom:0;}
+.ctrl label{display:flex;justify-content:space-between;font-size:0.7rem;letter-spacing:0.05em;color:var(--ink-dim);text-transform:uppercase;margin-bottom:0.3rem;}
+.ctrl label .val{color:var(--gold);}
+input[type=range]{width:100%;accent-color:var(--gold);}
+input[type=number],input[type=text],select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--ink);font-family:Georgia,serif;font-size:0.8rem;padding:0.35rem 0.5rem;border-radius:var(--radius);}
+input[type=text]:focus,select:focus{border-color:var(--gold);outline:none;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.35rem;}
+.layer-btns,.tool-btns{display:flex;gap:0.35rem;flex-wrap:wrap;}
+.layer-btns button,.tool-btns button{flex:1;font-size:0.72rem;padding:0.4rem 0.2rem;}
+.toggle-row{display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;font-size:0.8rem;cursor:pointer;}
+.toggle-row input{accent-color:var(--gold);width:14px;height:14px;}
+.hintline{font-size:0.68rem;color:var(--ink-dim);line-height:1.5;font-style:italic;}
+.hintline b{color:var(--ink);font-style:normal;}
+kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:0 4px;font-size:0.7rem;font-family:inherit;}
+#libList{display:grid;grid-template-columns:repeat(2,1fr);gap:0.4rem;max-height:300px;overflow-y:auto;}
+.lib-item{position:relative;background:var(--surface2);border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:0.3rem;text-align:center;}
+.lib-item:hover{border-color:var(--gold);}
+.lib-item img{width:100%;height:58px;object-fit:contain;display:block;background:#0c141c;border-radius:2px;}
+.lib-item .nm{font-size:0.6rem;color:var(--ink-dim);margin-top:0.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lib-item .del{position:absolute;top:0;right:4px;color:#ffb0a0;font-size:0.75rem;opacity:0.55;}
+.lib-item .del:hover{opacity:1;}
+.mini{font-size:0.7rem;padding:0.3rem 0.45rem;}
+.objname{font-size:0.74rem;margin-bottom:0.5rem;word-break:break-word;}
+.objname small{color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.08em;font-size:0.6rem;margin-left:0.3rem;}
+.facts{font-size:0.7rem;color:var(--ink-dim);line-height:1.6;}
+.facts b{color:var(--gold);font-weight:normal;}
+/* Icons as CSS masks, so they take the text colour and need no emoji font. */
+.ic{display:inline-block;width:1.05em;height:1.05em;vertical-align:-0.17em;background:currentColor;flex:none;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;}
+button .ic,.filebtn .ic,a.filebtn .ic{margin-right:0.34em;}
+.ic.solo{margin-right:0;}
+.ic-folder{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3C/svg%3E");}
+.ic-save{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 3h11l3 3v15H5z'/%3E%3Cpath d='M8 3v6h8V3'/%3E%3Cpath d='M8 13h8v8H8z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 3h11l3 3v15H5z'/%3E%3Cpath d='M8 3v6h8V3'/%3E%3Cpath d='M8 13h8v8H8z'/%3E%3C/svg%3E");}
+.ic-pencil{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16z'/%3E%3C/svg%3E");}
+.ic-x{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 6l12 12'/%3E%3Cpath d='M18 6L6 18'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 6l12 12'/%3E%3Cpath d='M18 6L6 18'/%3E%3C/svg%3E");}
+.ic-move{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v18'/%3E%3Cpath d='M3 12h18'/%3E%3Cpath d='M9 6l3-3 3 3'/%3E%3Cpath d='M9 18l3 3 3-3'/%3E%3Cpath d='M6 9l-3 3 3 3'/%3E%3Cpath d='M18 9l3 3-3 3'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v18'/%3E%3Cpath d='M3 12h18'/%3E%3Cpath d='M9 6l3-3 3 3'/%3E%3Cpath d='M9 18l3 3 3-3'/%3E%3Cpath d='M6 9l-3 3 3 3'/%3E%3Cpath d='M18 9l3 3-3 3'/%3E%3C/svg%3E");}
+.ic-hex{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 3h8l4 9-4 9H8l-4-9z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 3h8l4 9-4 9H8l-4-9z'/%3E%3C/svg%3E");}
+.ic-star{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2l2.4 7.1L22 12l-7.6 2.9L12 22l-2.4-7.1L2 12l7.6-2.9z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2l2.4 7.1L22 12l-7.6 2.9L12 22l-2.4-7.1L2 12l7.6-2.9z'/%3E%3C/svg%3E");}
+.ic-rotccw{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 12a8.5 8.5 0 1 0 2.9-6.4'/%3E%3Cpath d='M3 4.5V10h5.5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 12a8.5 8.5 0 1 0 2.9-6.4'/%3E%3Cpath d='M3 4.5V10h5.5'/%3E%3C/svg%3E");}
+.ic-rotcw{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.5 12a8.5 8.5 0 1 1-2.9-6.4'/%3E%3Cpath d='M21 4.5V10h-5.5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.5 12a8.5 8.5 0 1 1-2.9-6.4'/%3E%3Cpath d='M21 4.5V10h-5.5'/%3E%3C/svg%3E");}
+.ic-download{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12'/%3E%3Cpath d='M7 11l5 5 5-5'/%3E%3Cpath d='M4 20h16'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12'/%3E%3Cpath d='M7 11l5 5 5-5'/%3E%3Cpath d='M4 20h16'/%3E%3C/svg%3E");}
+.ic-upload{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21V9'/%3E%3Cpath d='M7 13l5-5 5 5'/%3E%3Cpath d='M4 4h16'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21V9'/%3E%3Cpath d='M7 13l5-5 5 5'/%3E%3Cpath d='M4 4h16'/%3E%3C/svg%3E");}
+.ic-plus{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14'/%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14'/%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E");}
+.ic-flip{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9h13l-3-3'/%3E%3Cpath d='M20 15H7l3 3'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9h13l-3-3'/%3E%3Cpath d='M20 15H7l3 3'/%3E%3C/svg%3E");}
+.ic-up{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 15l6-6 6 6'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 15l6-6 6 6'/%3E%3C/svg%3E");}
+.ic-down{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Falldin <em>piece creator</em></h1>
+  <label class="filebtn" for="tileFolder"><i class="ic ic-folder"></i>Load Tile Folder</label>
+  <input type="file" id="tileFolder" webkitdirectory directory multiple>
+  <label class="filebtn" for="tileFiles"><i class="ic ic-plus"></i>Add Files</label>
+  <input type="file" id="tileFiles" accept="image/*" multiple>
+  <span id="status" style="font-size:0.72rem;color:var(--ink-dim);">no tiles loaded</span>
+  <span style="font-size:0.66rem;color:var(--gold);opacity:0.7;letter-spacing:0.5px;">v5.0</span>
+  <span class="spacer"></span>
+  <button id="newPiece"><i class="ic ic-star"></i>New Piece</button>
+  <a class="filebtn" href="hex-editor.html" style="text-decoration:none;"><i class="ic ic-hex"></i>Map Editor</a>
+</div>
+
+<div class="workspace">
+  <div class="palette">
+    <div class="cat-tabs" id="catTabs"></div>
+    <div class="tile-scroll" id="tileScroll">
+      <div class="palette-empty" id="palEmpty">
+        Click <strong>Load Tile Folder</strong> and pick your tile pack (e.g. <strong>Assets - 72 DPI (VTT)</strong>).<br><br>
+        Loading is <strong>additive</strong>: you can add more folders on top.<br><br>
+        Your own images don't need a folder: use <strong>Import Image</strong> on the right.
+      </div>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="board" width="820" height="620"></canvas>
+    <div class="stagehint" id="stageHint"></div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="pgroup">
+      <h2>1 · Shape</h2>
+      <p class="hintline" style="margin-bottom:0.5rem;">A piece covers <b>one or more hexes</b>. Use <b>Shape</b> to click or drag hexes in and out of the piece. Painting a hex adds it too.</p>
+      <div class="tool-btns">
+        <button data-tool="shape"><i class="ic ic-hex"></i>Shape</button>
+        <button data-tool="paint" class="active"><i class="ic ic-pencil"></i>Paint</button>
+        <button data-tool="erase"><i class="ic ic-x"></i>Erase</button>
+      </div>
+      <div class="tool-btns" style="margin-top:0.35rem;">
+        <button data-tool="select"><i class="ic ic-move"></i>Select / Adjust</button>
+        <button data-tool="pan">Pan</button>
+      </div>
+      <p class="facts" id="shapeFacts" style="margin-top:0.5rem;"></p>
+    </div>
+
+    <div class="pgroup">
+      <h2>2 · Fill</h2>
+      <div class="layer-btns">
+        <button data-layer="base" class="active">Terrain</button>
+        <button data-layer="lines">River/Path</button>
+        <button data-layer="features">Feature</button>
+      </div>
+      <div class="ctrl" style="margin-top:0.6rem;">
+        <label>Brush rotation <span class="val" id="vRot">0°</span></label>
+        <div class="tool-btns"><button id="rotL"><i class="ic ic-rotccw"></i>-60°</button><button id="rotR"><i class="ic ic-rotcw"></i>+60°</button></div>
+      </div>
+      <label class="toggle-row"><input type="checkbox" id="riverConnect" checked>Auto-connect rivers/paths</label>
+      <label class="toggle-row"><input type="checkbox" id="randVariant">Randomize terrain variant</label>
+      <label class="filebtn" for="artFile" style="display:block;text-align:center;margin-top:0.5rem;border-color:var(--gold);color:var(--gold);"><i class="ic ic-upload"></i>Import Image (your own art)</label>
+      <input type="file" id="artFile" accept="image/png,image/webp,image/jpeg,image/gif">
+      <p class="hintline" style="margin-top:0.4rem;">Your image is added to the <b>active layer</b> and fitted to the piece's shape. Use a PNG with transparency for art that should sit on top of terrain.</p>
+    </div>
+
+    <div class="pgroup" id="objPanel" style="display:none;">
+      <h2>Selected</h2>
+      <div class="objname" id="objName"></div>
+      <div id="artOnly" style="display:none;margin-bottom:0.6rem;">
+        <button id="objFit" class="primary" style="width:100%;margin-bottom:0.35rem;">Fit to Shape</button>
+        <label class="toggle-row"><input type="checkbox" id="objTrim">Trim to the piece's hex outline</label>
+        <p class="facts" id="artDetail" style="margin-top:0.3rem;"></p>
+      </div>
+      <div class="ctrl"><label>Size <span class="val" id="vObjScale">100%</span></label><input type="range" id="objScale" min="10" max="400" value="100"></div>
+      <div class="ctrl"><label>Rotation <span class="val" id="vObjRot">0°</span></label><input type="range" id="objRot" min="-180" max="180" value="0"></div>
+      <div class="ctrl"><label>Hue <span class="val" id="vObjHue">0°</span></label><input type="range" id="objHue" min="-180" max="180" value="0"></div>
+      <div class="ctrl"><label>Saturation <span class="val" id="vObjSat">100%</span></label><input type="range" id="objSat" min="0" max="250" value="100"></div>
+      <div class="ctrl"><label>Opacity <span class="val" id="vObjAlpha">100%</span></label><input type="range" id="objAlpha" min="10" max="100" value="100"></div>
+      <div class="row3">
+        <button class="mini" id="objFlip"><i class="ic ic-flip"></i>Flip</button>
+        <button class="mini" id="objUp"><i class="ic ic-up"></i>Front</button>
+        <button class="mini" id="objDown"><i class="ic ic-down"></i>Back</button>
+      </div>
+      <div class="row2" style="margin-top:0.35rem;">
+        <button class="mini" id="objReset"><i class="ic ic-rotccw"></i>Reset</button>
+        <button class="mini danger" id="objDel"><i class="ic ic-x"></i>Delete</button>
+      </div>
+      <p class="hintline" style="margin-top:0.45rem;"><b>Drag</b> moves · <b>scroll</b> resizes · <kbd>R</kbd> rotates 15° · arrows nudge · <kbd>Del</kbd> deletes · double-click resets.</p>
+    </div>
+
+    <div class="pgroup">
+      <h2>3 · Check the Fit</h2>
+      <label class="toggle-row"><input type="checkbox" id="showSurround" checked>Show surroundings</label>
+      <p class="facts" style="margin:0.2rem 0 0.4rem;">Around the piece: <b id="surroundName">none</b></p>
+      <button id="useSurround" class="mini" style="width:100%;">Use selected palette tile around the piece</button>
+      <label class="toggle-row" style="margin-top:0.4rem;"><input type="checkbox" id="showGrid" checked>Show hex grid</label>
+      <label class="toggle-row"><input type="checkbox" id="showOutline" checked>Show piece outline</label>
+    </div>
+
+    <div class="pgroup">
+      <h2>4 · Save</h2>
+      <div class="ctrl"><label>Name</label><input type="text" id="pieceName" placeholder="e.g. walled city"></div>
+      <button id="savePiece" class="primary" style="width:100%;"><i class="ic ic-save"></i>Save to Library</button>
+      <div class="row2" style="margin-top:0.4rem;">
+        <button id="exportOne" class="mini"><i class="ic ic-download"></i>Export File</button>
+        <label class="filebtn mini" for="importFile" style="text-align:center;"><i class="ic ic-upload"></i>Import</label>
+      </div>
+      <input type="file" id="importFile" accept=".json">
+      <p class="hintline" style="margin-top:0.4rem;">Saved pieces show up in the map tool's <b>Stamps</b> panel. Pack tiles are stored by name (so HD renders use HD tiles); your own images are stored inside the piece.</p>
+    </div>
+
+    <div class="pgroup">
+      <h2>Library</h2>
+      <p class="facts" id="libWhere" style="margin-bottom:0.45rem;"></p>
+      <div class="row2" style="margin-bottom:0.35rem;">
+        <button id="libChoose" class="mini"><i class="ic ic-folder"></i>Choose Folder</button>
+        <button id="libRefresh" class="mini">Refresh</button>
+      </div>
+      <button id="libReconnect" class="mini primary" style="width:100%;margin-bottom:0.35rem;display:none;">Allow Access to Folder</button>
+      <button id="libCopy" class="mini" style="width:100%;margin-bottom:0.35rem;display:none;">Copy browser pieces into folder</button>
+      <div id="libList"></div>
+      <button id="exportAll" class="mini" style="width:100%;margin-top:0.4rem;"><i class="ic ic-download"></i>Export Whole Library</button>
+      <p class="hintline" style="margin-top:0.4rem;">Click a piece to edit it. Saving with the same name updates it; a new name saves a copy.</p>
+    </div>
+
+    <div class="pgroup">
+      <h2>Asset Sizing &amp; Workspace</h2>
+      <label class="toggle-row"><input type="checkbox" id="nativeSize" checked>Native asset size</label>
+      <p class="hintline">Draws every pack asset at the size its artist made it (towns stay town-sized), same as the map tool.</p>
+      <div class="ctrl" style="margin-top:0.5rem;"><label>Extras base size <span class="val" id="vExtraK">100%</span></label><input type="range" id="extraK" min="20" max="200" value="100"></div>
+      <div class="ctrl"><label>Tile fill <span class="val" id="vFill">200%</span></label><input type="range" id="tileFill" min="80" max="300" value="200"></div>
+      <div class="ctrl"><label>Zoom <span class="val" id="vHex">90</span></label><input type="range" id="hexSize" min="30" max="220" value="90"></div>
+      <div class="row2">
+        <div class="ctrl"><label>Columns</label><input type="number" id="cols" value="14" min="3" max="60"></div>
+        <div class="ctrl"><label>Rows</label><input type="number" id="rows" value="11" min="3" max="60"></div>
+      </div>
+      <button id="clearWs" class="danger" style="width:100%;">Clear Piece</button>
+    </div>
+  </div>
+</div>
+
+<script src="falldin-pieces.js"></script>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const board=$('board'), ctx=board.getContext('2d'), stage=$('stage');
+const FP=window.FalldinPieces;
+if(!FP) alert('falldin-pieces.js is missing — keep it in the same folder as this page.');
+const HEXAR=194/224;
+const MAX_ART_SIDE=4096;                             // imported images larger than this are scaled down
+
+/* ============================================================
+   PACK TILES (additive loading, one copy per name, prefers 72 DPI)
+   ============================================================ */
+let tiles=[], index={}, cats={}, activeTile=null;
+let REF_W=0, REF_DPI=0, nativeSize=true, extraK=1, tileFill=2;
+const DPI_PREF=[72,150,300];
+function dpiOf(p){ const m=p.match(/(\d{2,3})\s*DPI/i); return m?+m[1]:0; }
+function dpiRank(d){ const i=DPI_PREF.indexOf(d); return i<0?99:i; }
+function isHexName(base){ return /^Hex\s*-/i.test(base); }
+function ingest(fileList){
+  const files=[...fileList].filter(f=>/\.(png|webp)$/i.test(f.name));
+  if(!files.length){ alert('No tile images (.png/.webp) found there.'); return null; }
+  const best=new Map(); let dropped=0;
+  for(const f of files){
+    const path=f.webkitRelativePath||f.name;
+    if(/Extras\s*-\s*Copy/i.test(path)){ dropped++; continue; }
+    const base=f.name.replace(/\.(png|webp)$/i,''), d=dpiOf(path), cur=best.get(base);
+    if(cur){ dropped++; if(dpiRank(d)>=dpiRank(cur.dpi)) continue; }
+    best.set(base,{f,dpi:d,path});
+  }
+  let added=0;
+  for(const [base,rec] of best){
+    if(index[base]){ if(dpiRank(rec.dpi)>=dpiRank(index[base].dpi)) continue;
+      const old=index[base]; URL.revokeObjectURL(old.url); old.url=URL.createObjectURL(rec.f); old.img=null; old.nw=0; old.dpi=rec.dpi; continue; }
+    const m=base.match(/ (N|NE|E|SE|S|SW|W|NW)$/);
+    const dir=m?m[1]:null, prefix=dir?base.slice(0,m.index):base;
+    const t={base,url:URL.createObjectURL(rec.f),img:null,nw:0,nh:0,cat:categorize(base,rec.path),dir,prefix,dpi:rec.dpi,
+             hex:isHexName(base)&&!/Extras/i.test(rec.path)};
+    tiles.push(t); index[base]=t; (cats[t.cat]=cats[t.cat]||[]).push(t); added++;
+  }
+  primeReference();
+  return {dropped,added};
+}
+function categorize(base,path){
+  if(/Extras/i.test(path) || !isHexName(base)){
+    if(/Building|City|Town|Farm|Tower|Monastery|Wall|Castle|Keep|Village|Hamlet/i.test(base)) return 'Extras · Towns';
+    if(/Banner|Statue|Flag|Marker|Icon/i.test(base)) return 'Extras · Markers';
+    return 'Extras · Misc';
+  }
+  const b=base.replace(/^Hex - /i,'');
+  if(/^Base/i.test(b)) return 'Base'; if(/River/i.test(b)) return 'Rivers'; if(/Path/i.test(b)) return 'Paths';
+  if(/Coast|Beach/i.test(b)) return 'Coast'; if(/Water|Ocean|Swamp/i.test(b)) return 'Water'; if(/Mountain/i.test(b)) return 'Mountains';
+  if(/Hill/i.test(b)) return 'Hills'; if(/Forest|Tree/i.test(b)) return 'Forest'; if(/Plains/i.test(b)) return 'Plains';
+  if(/Snow/i.test(b)) return 'Snow'; if(/Wetland/i.test(b)) return 'Wetlands'; if(/Urban|Ruin/i.test(b)) return 'Urban';
+  return 'Other';
+}
+const CAT_ORDER=['Base','Plains','Hills','Forest','Mountains','Water','Coast','Snow','Wetlands','Rivers','Paths','Urban','Other','Extras · Towns','Extras · Markers','Extras · Misc'];
+function ensureImg(t,cb){
+  if(t.img){ cb&&cb(t.img); return; }
+  if(t._cbs){ t._cbs.push(cb); return; }
+  t._cbs=[cb]; const im=new Image();
+  im.onload=()=>{ t.img=im; t.nw=im.naturalWidth; t.nh=im.naturalHeight;
+    if(!REF_W && t.hex && !t.dir){ REF_W=t.nw; REF_DPI=t.dpi||0; }
+    const cbs=t._cbs; t._cbs=null; for(const f of cbs) f&&f(im); draw(); };
+  im.onerror=()=>{ const cbs=t._cbs; t._cbs=null; for(const f of cbs) f&&f(null); };
+  im.src=t.url;
+}
+const ensureImgP=t=>new Promise(r=>ensureImg(t,r));
+function primeReference(){ if(REF_W) return; const t=tiles.find(x=>x.hex&&!x.dir); if(t) ensureImg(t,()=>draw()); }
+function widthInHex(t){ if(!nativeSize||!t.nw||!REF_W) return 1; const ref=(t.dpi&&REF_DPI)?REF_W*(t.dpi/REF_DPI):REF_W; const w=t.nw/ref; return t.hex?w:w*extraK; }
+
+/* ============================================================
+   YOUR OWN ART (embedded in the piece as a data URL)
+   ============================================================ */
+const arts={};                                        // id -> {id, src, img, nw, nh, name}
+function addArt(src,name){
+  const id=FP.artId(src);
+  if(arts[id]) return Promise.resolve(arts[id]);
+  return new Promise((res,rej)=>{ const im=new Image();
+    im.onload=()=>{ arts[id]={id,src,img:im,nw:im.naturalWidth,nh:im.naturalHeight,name:name||'image'}; res(arts[id]); };
+    im.onerror=()=>rej(new Error('Could not read that image.')); im.src=src; });
+}
+function fileToDataURL(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); }
+async function capSize(src){                          // keep huge images manageable (stored inside the piece)
+  const im=new Image(); im.src=src; await im.decode();
+  const k=Math.min(1, MAX_ART_SIDE/Math.max(im.naturalWidth,im.naturalHeight));
+  if(k>=1) return src;
+  const c=document.createElement('canvas'); c.width=Math.round(im.naturalWidth*k); c.height=Math.round(im.naturalHeight*k);
+  c.getContext('2d').drawImage(im,0,0,c.width,c.height); return c.toDataURL('image/png');
+}
+
+/* ============================================================
+   WORKSPACE HEX GRID (flat-top, odd columns shifted down)
+   ============================================================ */
+const grid={cols:14,rows:11,hex:90};
+let cam={x:0,y:0}, showGrid=true, showOutline=true, showSurround=true, surroundTile=null;
+function hexW(){ return grid.hex; } function hexH(){ return grid.hex*HEXAR; }
+function hexCenter(c,r){ return { x:c*hexW()*0.75+hexW()/2, y:r*hexH()+hexH()/2+((c&1)?hexH()/2:0) }; }
+function worldW(){ return (grid.cols-1)*hexW()*0.75+hexW(); } function worldH(){ return grid.rows*hexH()+hexH()/2; }
+const OPP={N:'S',S:'N',NE:'SW',SW:'NE',SE:'NW',NW:'SE'};
+function neighbor(c,r,dir){ const even=!(c&1);
+  switch(dir){ case 'N': return [c,r-1]; case 'S': return [c,r+1];
+    case 'NE': return even?[c+1,r-1]:[c+1,r]; case 'SE': return even?[c+1,r]:[c+1,r+1];
+    case 'NW': return even?[c-1,r-1]:[c-1,r]; case 'SW': return even?[c-1,r]:[c-1,r+1]; default: return null; } }
+function inGrid(c,r){ return c>=0&&r>=0&&c<grid.cols&&r<grid.rows; }
+function pixelToHex(px,py){
+  const ac=Math.floor(px/(hexW()*0.75)), ar=Math.floor(py/hexH()); let best=null,bd=1e18;
+  for(let c=ac-1;c<=ac+1;c++)for(let r=ar-1;r<=ar+1;r++){ if(!inGrid(c,r)) continue;
+    const p=hexCenter(c,r), d=(p.x-px)**2+(p.y-py)**2; if(d<bd){ bd=d; best=[c,r]; } }
+  return best;
+}
+const K=(c,r)=>c+','+r, unK=k=>k.split(',').map(Number);
+function hexPath(cx,x,y,w,h){ cx.moveTo(x+w,y);cx.lineTo(x+w/2,y-h);cx.lineTo(x-w/2,y-h);cx.lineTo(x-w,y);cx.lineTo(x-w/2,y+h);cx.lineTo(x+w/2,y+h);cx.closePath(); }
+
+/* ============================================================
+   THE PIECE
+   foot  = the hexes the piece covers ("c,r" keys in the workspace)
+   cells = "c,r" -> {base:obj|null, lines:[obj], features:[obj]}
+   obj   = pack tile {t, rot, sc, dx, dy, flip, hue, sat, alpha}
+         | your art  {a:id, w, trim, rot, sc, dx, dy, flip, hue, sat, alpha}
+   dx / dy / w are in HEX WIDTHS (zoom-proof).
+   ============================================================ */
+let foot=new Set(), cells=new Map();
+let tool='paint', layer='base', brushStep=0, sel=null;   // sel = {k, layer, i}
+function mkObj(t,rot){ return {t,rot:rot||0,sc:1,dx:0,dy:0,hue:0,sat:1,flip:false,alpha:1}; }
+function mkArt(id,w){ return {a:id,w:w||1,trim:false,rot:0,sc:1,dx:0,dy:0,hue:0,sat:1,flip:false,alpha:1}; }
+function emptyCell(){ return {base:null,lines:[],features:[]}; }
+function cellOf(k){ let c=cells.get(k); if(!c){ c=emptyCell(); cells.set(k,c); } return c; }
+function objImg(o){ if(o.a!==undefined){ const A=arts[o.a]; return A?A.img:null; } if(!o.t) return null; if(!o.t.img){ ensureImg(o.t); return null; } return o.t.img; }
+function objLabel(o){ return o.a!==undefined?((arts[o.a]&&arts[o.a].name)||'your image'):(o.t?o.t.base:'?'); }
+// drawn size in px for hex width u
+function objSize(o,u){
+  const s=o.sc||1;
+  if(o.a!==undefined){ const A=arts[o.a]; const w=(o.w||1)*u*s; return {w, h:A?w*A.nh/A.nw:w}; }
+  const t=o.t, dw=u*tileFill;
+  if(!nativeSize||!t.nw||!REF_W) return {w:dw*s,h:dw*HEXAR*s};
+  const w=dw*widthInHex(t)*s; return {w,h:w*t.nh/t.nw};
+}
+
+// ---- undo ----
+let history=[];
+function snap(){ return {foot:[...foot], cells:[...cells].map(([k,c])=>[k,{base:c.base?{...c.base}:null,lines:c.lines.map(o=>({...o})),features:c.features.map(o=>({...o}))}])}; }
+function pushHistory(){ history.push(snap()); if(history.length>80) history.shift(); }
+function undo(){ if(!history.length) return; const s=history.pop(); foot=new Set(s.foot); cells=new Map(s.cells); sel=null; syncObjUI(); refreshFacts(); draw(); }
+
+/* ---- shape / paint / erase ---- */
+function setFoot(k,on){
+  if(on){ foot.add(k); return; }
+  foot.delete(k); cells.delete(k); if(sel&&sel.k===k){ sel=null; syncObjUI(); }
+}
+function place(c,r){
+  if(!activeTile) return;
+  let put=activeTile;
+  if(layer==='base' && $('randVariant').checked && !activeTile.dir){ const pool=(cats[activeTile.cat]||[]).filter(t=>!t.dir); if(pool.length) put=pool[(Math.random()*pool.length)|0]; }
+  ensureImg(put);
+  const rot=brushStep*Math.PI/3, k=K(c,r); foot.add(k); const cell=cellOf(k);
+  if(layer==='base'){ const keep=cell.base; cell.base=mkObj(put,0); if(keep&&keep.t){ Object.assign(cell.base,{sc:keep.sc,dx:keep.dx,dy:keep.dy,hue:keep.hue,sat:keep.sat}); } }
+  else if(layer==='lines'){
+    const li=cell.lines.findIndex(o=>o.t===put);
+    if(li>=0){ const cur=cell.lines[li]; cur.rot=((Math.round(cur.rot/(Math.PI/3))+1)%6)*(Math.PI/3); return; }
+    cell.lines.push(mkObj(put,rot));
+    if($('riverConnect').checked && brushStep===0 && put.dir && OPP[put.dir]){
+      const nb=neighbor(c,r,put.dir), opp=index[put.prefix+OPP[put.dir]];
+      if(nb && inGrid(...nb) && opp){ ensureImg(opp); const nk=K(...nb); foot.add(nk); const nc=cellOf(nk); if(!nc.lines.some(o=>o.t===opp&&!o.rot)) nc.lines.push(mkObj(opp,0)); }
+    }
+  }
+  else cell.features.push(mkObj(put,rot));
+}
+function erase(c,r){
+  const k=K(c,r), cell=cells.get(k); if(!cell) return;
+  if(layer==='base') cell.base=null; else if(layer==='lines') cell.lines.pop(); else cell.features.pop();
+  if(sel&&sel.k===k){ sel=null; syncObjUI(); }
+}
+
+/* ============================================================
+   RENDER — terrain pass, then rivers/paths, then features (same rule as the map tool)
+   ============================================================ */
+function footPath(cx,ox,oy,u){                         // union of the piece's hexes, as a path
+  const w=u/2+0.5, h=u*HEXAR/2+0.5; cx.beginPath();
+  for(const k of foot){ const [c,r]=unK(k), p=hexCenterU(c,r,u); hexPath(cx,p.x-ox,p.y-oy,w,h); }
+}
+function hexCenterU(c,r,u){ const h=u*HEXAR; return { x:c*u*0.75+u/2, y:r*h+h/2+((c&1)?h/2:0) }; }
+function drawObj(cx,o,x,y,u){
+  const im=objImg(o); if(!im) return;
+  const {w,h}=objSize(o,u);
+  cx.save();
+  if(o.a!==undefined && o.trim){ footPath(cx,cx._ox||0,cx._oy||0,u); cx.clip(); }
+  cx.translate(x+(o.dx||0)*u, y+(o.dy||0)*u);
+  if(o.rot) cx.rotate(o.rot);
+  if(o.flip) cx.scale(-1,1);
+  const hue=o.hue||0, sat=(o.sat===undefined?1:o.sat);
+  if(hue||sat!==1) cx.filter=(hue?'hue-rotate('+hue+'deg) ':'')+(sat!==1?'saturate('+sat+')':'');
+  if(o.alpha!==undefined&&o.alpha!==1) cx.globalAlpha=o.alpha;
+  cx.drawImage(im,-w/2,-h/2,w,h);
+  cx.restore();
+}
+// Draw the piece (and optionally its surroundings) onto cx. u = hex width in px; (ox,oy) = world offset.
+function paintPiece(cx,u,ox,oy,withSurround){
+  cx._ox=ox; cx._oy=oy;
+  const list=[];
+  for(let c=0;c<grid.cols;c++)for(let r=0;r<grid.rows;r++){
+    const k=K(c,r), inF=foot.has(k), cell=cells.get(k);
+    if(!inF && !(withSurround&&surroundTile)) continue;
+    const p=hexCenterU(c,r,u); list.push({k,inF,cell,x:p.x-ox,y:p.y-oy});
+  }
+  list.sort((a,b)=>(a.y-b.y)||(a.x-b.x));
+  const sur=surroundTile?mkObj(surroundTile,0):null;
+  for(const it of list){ if(!it.inF){ drawObj(cx,sur,it.x,it.y,u); } else if(it.cell&&it.cell.base) drawObj(cx,it.cell.base,it.x,it.y,u); }
+  for(const it of list) if(it.inF&&it.cell) for(const o of it.cell.lines) drawObj(cx,o,it.x,it.y,u);
+  for(const it of list) if(it.inF&&it.cell) for(const o of it.cell.features) drawObj(cx,o,it.x,it.y,u);
+}
+function render(){
+  ctx.clearRect(0,0,board.width,board.height); ctx.fillStyle='#0c141c'; ctx.fillRect(0,0,board.width,board.height);
+  const u=hexW(), w=u/2, h=hexH()/2;
+  if(showGrid){ ctx.strokeStyle='rgba(201,168,76,0.22)'; ctx.lineWidth=1;
+    for(let c=0;c<grid.cols;c++)for(let r=0;r<grid.rows;r++){ const p=hexCenter(c,r); ctx.beginPath(); hexPath(ctx,p.x-cam.x,p.y-cam.y,w,h); ctx.stroke(); } }
+  ctx.fillStyle='rgba(201,168,76,0.10)';                                // empty piece hexes show as a faint fill
+  for(const k of foot){ const [c,r]=unK(k), cell=cells.get(k); if(cell&&(cell.base||cell.lines.length||cell.features.length)) continue;
+    const p=hexCenter(c,r); ctx.beginPath(); hexPath(ctx,p.x-cam.x,p.y-cam.y,w,h); ctx.fill(); }
+  paintPiece(ctx,u,cam.x,cam.y,showSurround);
+  if(showOutline && foot.size){                                        // outline: only the outer edges of the shape
+    ctx.save(); ctx.strokeStyle='rgba(230,199,102,0.95)'; ctx.lineWidth=2.5; ctx.setLineDash([]); ctx.beginPath();
+    const DIR6=['N','NE','SE','S','SW','NW'];
+    // corner pairs (flat-top) for each direction's shared edge
+    const EDGE={N:[[-0.25,-0.5],[0.25,-0.5]],NE:[[0.25,-0.5],[0.5,0]],SE:[[0.5,0],[0.25,0.5]],S:[[0.25,0.5],[-0.25,0.5]],SW:[[-0.25,0.5],[-0.5,0]],NW:[[-0.5,0],[-0.25,-0.5]]};
+    for(const k of foot){ const [c,r]=unK(k), p=hexCenter(c,r);
+      for(const d of DIR6){ const nb=neighbor(c,r,d); if(nb&&foot.has(K(...nb))) continue;
+        const [[ax,ay],[bx,by]]=EDGE[d]; ctx.moveTo(p.x-cam.x+ax*u, p.y-cam.y+ay*2*h); ctx.lineTo(p.x-cam.x+bx*u, p.y-cam.y+by*2*h); } }
+    ctx.stroke(); ctx.restore();
+  }
+  const o=selObj();
+  if(tool==='select' && o){ const b=objBox(sel.k,o); if(b){ ctx.save(); ctx.strokeStyle='#66ccff'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+    ctx.strokeRect(b.x0-cam.x,b.y0-cam.y,b.x1-b.x0,b.y1-b.y0); ctx.restore(); } }
+}
+let rafPending=false;
+function draw(){ if(rafPending) return; rafPending=true; requestAnimationFrame(()=>{ rafPending=false; render(); }); }
+
+/* ============================================================
+   SELECT / ADJUST
+   ============================================================ */
+function selObj(){ if(!sel) return null; const c=cells.get(sel.k); if(!c) return null; return sel.layer==='base'?c.base:(c[sel.layer][sel.i]||null); }
+function objBox(k,o){                                    // axis-aligned box of the drawn object (world px)
+  if(o.a===undefined && o.t && !o.t.nw) return null;
+  const [c,r]=unK(k), p=hexCenter(c,r), {w,h}=objSize(o,hexW());
+  const cs=Math.abs(Math.cos(o.rot||0)), sn=Math.abs(Math.sin(o.rot||0)), hw=(w*cs+h*sn)/2, hh=(w*sn+h*cs)/2;
+  const x=p.x+(o.dx||0)*hexW(), y=p.y+(o.dy||0)*hexW();
+  return {x0:x-hw,y0:y-hh,x1:x+hw,y1:y+hh,area:hw*hh};
+}
+function hitTest(wx,wy){                                 // topmost object under the point (features > lines > terrain)
+  const order=[...foot].map(k=>{ const [c,r]=unK(k); return {k,y:hexCenter(c,r).y}; }).sort((a,b)=>b.y-a.y);
+  const hits=[];
+  for(const lay of ['features','lines','base']) for(const {k} of order){ const cell=cells.get(k); if(!cell) continue;
+    const arr=lay==='base'?(cell.base?[cell.base]:[]):cell[lay];
+    for(let i=arr.length-1;i>=0;i--){ const b=objBox(k,arr[i]); if(b&&wx>=b.x0&&wx<=b.x1&&wy>=b.y0&&wy<=b.y1) hits.push({k,layer:lay,i,area:b.area}); }
+    if(hits.length) break; }
+  if(!hits.length) return null;
+  hits.sort((a,b)=>a.area-b.area); return hits[0];       // within a layer, prefer the smallest thing under the cursor
+}
+function syncObjUI(){
+  const o=selObj(); $('objPanel').style.display=o?'':'none'; if(!o) return;
+  const lay={base:'Terrain',lines:'River/Path',features:'Feature'}[sel.layer];
+  $('objName').innerHTML=''; $('objName').append(document.createTextNode(objLabel(o)));
+  const sm=document.createElement('small'); sm.textContent=lay+(o.a!==undefined?' · your image':''); $('objName').append(sm);
+  $('artOnly').style.display=o.a!==undefined?'':'none'; $('objTrim').checked=!!o.trim; showArtDetail(o);
+  const set=(id,lbl,v,suf)=>{ $(id).value=v; $(lbl).textContent=v+(suf||''); };
+  set('objScale','vObjScale',Math.round((o.sc||1)*100),'%');
+  set('objRot','vObjRot',Math.round((o.rot||0)*180/Math.PI),'°');
+  set('objHue','vObjHue',Math.round(o.hue||0),'°');
+  set('objSat','vObjSat',Math.round((o.sat===undefined?1:o.sat)*100),'%');
+  set('objAlpha','vObjAlpha',Math.round((o.alpha===undefined?1:o.alpha)*100),'%');
+}
+function bindSlider(id,lbl,suf,apply){
+  $(id).addEventListener('pointerdown',()=>{ if(selObj()) pushHistory(); });
+  $(id).addEventListener('input',e=>{ const o=selObj(); if(!o) return; apply(o,+e.target.value); $(lbl).textContent=e.target.value+suf; draw(); });
+}
+bindSlider('objScale','vObjScale','%',(o,v)=>{ o.sc=v/100; showArtDetail(o); });
+// How sharp your image is: its pixels per hex width. The pack's hexes are 224 px (72 DPI),
+// 466 px (150 DPI) and about 930 px (300 DPI) wide, so HD renders want an image at least that detailed.
+const HD_PX=[[930,'300 DPI'],[466,'150 DPI'],[224,'72 DPI']];
+function artPxPerHex(o){ const A=arts[o.a]; return A?A.nw/((o.w||1)*(o.sc||1)):0; }
+function showArtDetail(o){
+  const el=$('artDetail'); if(!el||!o||o.a===undefined) return;
+  const px=Math.round(artPxPerHex(o)), ok=HD_PX.find(([need])=>px>=need*0.95);
+  el.innerHTML='';
+  const b=document.createElement('b'); b.textContent=px+' px per hex'; el.append('Detail: ',b,'. ');
+  el.append(ok?(ok[1]==='300 DPI'?'Sharp even in 300 DPI HD renders.':'Sharp up to '+ok[1]+'; softer in higher-DPI HD renders.')
+              :'Softer than the pack tiles even on screen. Use a larger image for crisp results.');
+  el.style.color=ok&&ok[1]!=='72 DPI'?'':'#e0a070';
+}
+bindSlider('objRot','vObjRot','°',(o,v)=>o.rot=v*Math.PI/180);
+bindSlider('objHue','vObjHue','°',(o,v)=>o.hue=v);
+bindSlider('objSat','vObjSat','%',(o,v)=>o.sat=v/100);
+bindSlider('objAlpha','vObjAlpha','%',(o,v)=>o.alpha=v/100);
+function resetObj(o){ Object.assign(o,{sc:1,dx:0,dy:0,rot:0,hue:0,sat:1,flip:false,alpha:1}); }
+$('objFlip').onclick=()=>{ const o=selObj(); if(!o) return; pushHistory(); o.flip=!o.flip; draw(); };
+$('objReset').onclick=()=>{ const o=selObj(); if(!o) return; pushHistory(); resetObj(o); if(o.a!==undefined) fitArt(o); syncObjUI(); draw(); };
+function deleteSel(){ const cell=sel&&cells.get(sel.k); if(!cell) return; pushHistory();
+  if(sel.layer==='base') cell.base=null; else cell[sel.layer].splice(sel.i,1); sel=null; syncObjUI(); draw(); }
+$('objDel').onclick=deleteSel;
+function reorder(d){ const cell=sel&&cells.get(sel.k); if(!cell||sel.layer==='base') return; const a=cell[sel.layer], j=sel.i+d; if(j<0||j>=a.length) return;
+  pushHistory(); [a[sel.i],a[j]]=[a[j],a[sel.i]]; sel.i=j; draw(); }
+$('objUp').onclick=()=>reorder(1); $('objDown').onclick=()=>reorder(-1);
+$('objTrim').onchange=e=>{ const o=selObj(); if(!o||o.a===undefined) return; pushHistory(); o.trim=e.target.checked; draw(); };
+$('objFit').onclick=()=>{ const o=selObj(); if(!o||o.a===undefined) return; pushHistory(); fitArt(o); syncObjUI(); draw(); };
+
+/* ---- fit your image to the piece's shape (covers the shape's bounding box) ---- */
+function footBox(){ let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; const u=hexW(), h=hexH();
+  for(const k of foot){ const [c,r]=unK(k), p=hexCenter(c,r); x0=Math.min(x0,p.x-u/2); x1=Math.max(x1,p.x+u/2); y0=Math.min(y0,p.y-h/2); y1=Math.max(y1,p.y+h/2); }
+  return foot.size?{x0,y0,x1,y1,cx:(x0+x1)/2,cy:(y0+y1)/2}:null; }
+function nearestFoot(x,y){ let best=null,bd=1e18; for(const k of foot){ const [c,r]=unK(k), p=hexCenter(c,r), d=(p.x-x)**2+(p.y-y)**2; if(d<bd){ bd=d; best=k; } } return best; }
+function fitArt(o){
+  const A=arts[o.a], b=footBox(); if(!A||!b||!sel) return;
+  const u=hexW(), host=nearestFoot(b.cx,b.cy);
+  // move the object into the host hex (nearest the shape's centre), same layer
+  const from=cells.get(sel.k);
+  if(host!==sel.k){ if(sel.layer==='base'){ from.base=null; } else from[sel.layer].splice(sel.i,1);
+    const to=cellOf(host); if(sel.layer==='base'){ if(to.base) to.features.unshift(to.base); to.base=o; sel={k:host,layer:'base',i:0}; }
+    else { to[sel.layer].push(o); sel={k:host,layer:sel.layer,i:to[sel.layer].length-1}; } }
+  const [c,r]=unK(host), p=hexCenter(c,r);
+  o.rot=0; o.sc=1;
+  o.w=Math.max((b.x1-b.x0)/u, ((b.y1-b.y0)/u)*A.nw/A.nh);   // cover the whole shape
+  o.dx=(b.cx-p.x)/u; o.dy=(b.cy-p.y)/u;
+}
+$('artFile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    const src=await capSize(await fileToDataURL(f)); const A=await addArt(src,f.name.replace(/\.[^.]+$/,''));
+    pushHistory();
+    if(!foot.size){ const c=Math.floor(grid.cols/2), r=Math.floor(grid.rows/2); foot.add(K(c,r)); }
+    const b=footBox(), host=nearestFoot(b.cx,b.cy), cell=cellOf(host), o=mkArt(A.id,1);
+    if(layer==='base'){ if(cell.base) cell.features.unshift(cell.base); cell.base=o; sel={k:host,layer:'base',i:0}; }
+    else { cell[layer].push(o); sel={k:host,layer,i:cell[layer].length-1}; }
+    fitArt(o); o.trim=foot.size>1;                           // multi-hex art starts trimmed to the outline
+    setTool('select'); syncObjUI(); refreshFacts(); draw();
+    flash('Imported '+A.name+' ('+A.nw+'×'+A.nh+'px, '+Math.round(artPxPerHex(o))+' px per hex)');
+  }catch(err){ alert(err.message||'Could not import that image.'); }
+});
+
+/* ============================================================
+   SAVE / LOAD  (piece format v3, see falldin-pieces.js)
+   ============================================================ */
+function slug(s){ return (s||'piece').trim().replace(/[^\w\- ]+/g,'').replace(/\s+/g,'-').toLowerCase()||'piece'; }
+function dlText(text,name){ const b=new Blob([text],{type:'application/json'}), u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),4000); }
+// Cut an image to the piece's hex outline, in the image's own pixels, using the object's transform.
+function bakeTrim(o,hostK){
+  const A=arts[o.a], U=200, [c,r]=unK(hostK), p=hexCenterU(c,r,U);
+  const w=(o.w||1)*U*(o.sc||1), h=w*A.nh/A.nw;
+  const M=new DOMMatrix().translate(p.x+(o.dx||0)*U, p.y+(o.dy||0)*U).rotate((o.rot||0)*180/Math.PI).scale(o.flip?-1:1,1).scale(w/A.nw,h/A.nh).translate(-A.nw/2,-A.nh/2);
+  const cv=document.createElement('canvas'); cv.width=A.nw; cv.height=A.nh; const cx=cv.getContext('2d');
+  cx.drawImage(A.img,0,0);
+  cx.globalCompositeOperation='destination-in'; cx.setTransform(M.inverse());
+  footPath(cx,0,0,U); cx.fillStyle='#000'; cx.fill();
+  return cv.toDataURL('image/png');
+}
+function thumbnail(maxSide){
+  const U=64; let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  const grow=b=>{ if(!b) return; x0=Math.min(x0,b.x0);y0=Math.min(y0,b.y0);x1=Math.max(x1,b.x1);y1=Math.max(y1,b.y1); };
+  const k0=U/hexW();
+  for(const k of foot){ const [c,r]=unK(k), p=hexCenter(c,r); grow({x0:(p.x-hexW()/2)*k0,y0:(p.y-hexH()/2)*k0,x1:(p.x+hexW()/2)*k0,y1:(p.y+hexH()/2)*k0});
+    const cell=cells.get(k); if(!cell) continue; for(const o of [cell.base,...cell.lines,...cell.features]){ if(!o) continue; const b=objBox(k,o); if(b) grow({x0:b.x0*k0,y0:b.y0*k0,x1:b.x1*k0,y1:b.y1*k0}); } }
+  if(x0>x1) return '';
+  const W=x1-x0, H=y1-y0, s=Math.min(1,maxSide/Math.max(W,H));
+  const cv=document.createElement('canvas'); cv.width=Math.max(8,Math.ceil(W*s)); cv.height=Math.max(8,Math.ceil(H*s));
+  const cx=cv.getContext('2d'); cx.scale(s,s); paintPiece(cx,U,x0,y0,false); return cv.toDataURL('image/png');
+}
+function buildPiece(name){
+  if(!foot.size) return null;
+  // anchor = the piece hex nearest the shape's centre, so the cursor sits in the middle when placing
+  const b=footBox(), anchor=nearestFoot(b.cx,b.cy), [aq,aa]=FP.toAxial(...unK(anchor));
+  const art={}, out=[];
+  const conv=(o,k)=>{
+    if(o.a!==undefined){
+      const x={...o};
+      if(o.trim){ const baked=bakeTrim(o,k), id=FP.artId(baked); art[id]={src:baked}; art[o.a]={src:arts[o.a].src}; x.a=id; x.orig=o.a; }
+      else art[o.a]={src:arts[o.a].src};
+      return x;
+    }
+    return {...o, n:o.t.base};
+  };
+  for(const k of foot){
+    const [c,r]=unK(k), [q,a]=FP.toAxial(c,r), cell=cells.get(k)||emptyCell();
+    out.push({ q:q-aq, a:a-aa, base:cell.base?conv(cell.base,k):null, lines:cell.lines.map(o=>conv(o,k)), features:cell.features.map(o=>conv(o,k)) });
+  }
+  return FP.writePiece(name,{tileFill,nativeSize,extraK},out,thumbnail(200),art);
+}
+async function loadPiece(st){
+  let P; try{ P=FP.readPiece(st); }catch(e){ alert('Not a piece file.'); return; }
+  for(const id in P.art) await addArt(P.art[id].src).catch(()=>{});
+  pushHistory(); foot=new Set(); cells=new Map(); sel=null;
+  setTileFill(P.settings.tileFill); setNative(P.settings.nativeSize); setExtraK(P.settings.extraK);
+  // grow the workspace if the piece is large, then centre it
+  let mq=0; for(const c of P.cells) mq=Math.max(mq,Math.abs(c.q),Math.abs(c.a)+Math.abs(c.q));
+  if(grid.cols<mq*2+5){ grid.cols=mq*2+5; $('cols').value=grid.cols; } if(grid.rows<mq*2+5){ grid.rows=mq*2+5; $('rows').value=grid.rows; }
+  const [cq,ca]=FP.toAxial(Math.floor(grid.cols/2), Math.floor(grid.rows/2));
+  let missing=0;
+  const conv=o=>{
+    if(o.a!==undefined){ const id=(o.trim&&o.orig&&arts[o.orig])?o.orig:o.a; if(!arts[id]){ missing++; return null; }
+      const x={...o, a:id}; delete x.n; delete x.orig; if(!(o.trim&&o.orig)) x.trim=false; return x; }
+    const t=index[o.n]; if(!t){ missing++; return null; } ensureImg(t); const x={...o,t}; delete x.n; return x;
+  };
+  for(const pc of P.cells){
+    const [c,r]=FP.toOffset(cq+pc.q, ca+pc.a); if(!inGrid(c,r)){ missing++; continue; }
+    const k=K(c,r); foot.add(k);
+    const cell=emptyCell(); cell.base=pc.base?conv(pc.base):null; cell.lines=pc.lines.map(conv).filter(Boolean); cell.features=pc.features.map(conv).filter(Boolean);
+    if(cell.base||cell.lines.length||cell.features.length) cells.set(k,cell);
+  }
+  $('pieceName').value=P.name||''; centreView(); syncObjUI(); refreshFacts(); draw();
+  if(missing) flash(missing+' part(s) need tiles that are not loaded — load the tile folder first');
+}
+/* ---- the library: a folder on disk (or browser storage until one is chosen), see falldin-pieces.js ---- */
+const Lib=window.FalldinLibrary;
+let libCache=[], editing=null, libVer=0;       // editing = the library piece loaded in the workspace (its file is overwritten on save)
+function showLibState(){
+  const s=Lib.state(), where=$('libWhere');
+  where.innerHTML='';
+  const b=document.createElement('b');
+  if(s.mode==='folder'){ where.append('Folder: '); b.textContent=s.name; where.append(b); }
+  else if(s.needsPermission){ where.append('Folder '); b.textContent=s.name; where.append(b,' needs your OK again. Until then: browser storage.'); }
+  else { b.textContent='browser storage'; where.append('Kept in ',b,Lib.supported?'. Choose a folder to keep pieces as files you can copy and share.':' (this browser cannot use folders).'); }
+  $('libChoose').style.display=Lib.supported?'':'none';
+  $('libChoose').innerHTML=s.mode==='folder'?'Change Folder':'<i class="ic ic-folder"></i>Choose Folder';
+  $('libReconnect').style.display=s.needsPermission?'':'none';
+  $('libCopy').style.display=(s.mode==='folder'&&Lib.browserPieces().length)?'':'none';
+}
+async function refreshLib(){
+  const v=++libVer; let lib;
+  try{ lib=await Lib.list(); }catch(e){ lib=[]; flash('Could not read the library folder: '+(e.message||e)); }
+  if(v!==libVer) return;
+  libCache=lib; showLibState();
+  const wrap=$('libList'); wrap.innerHTML='';
+  if(!lib.length){ wrap.innerHTML='<div class="hintline" style="grid-column:1/3;">No pieces saved yet.</div>'; return; }
+  for(const st of lib){
+    const d=document.createElement('div'); d.className='lib-item';
+    d.title=(st.name||'piece')+' · '+((st.cells||[]).length)+' hex'+(st._file&&!st._file.startsWith('#')?' · '+st._file:'')+' · click to edit';
+    const im=document.createElement('img'); im.src=st.thumb||''; const nm=document.createElement('div'); nm.className='nm'; nm.textContent=st.name||'piece';
+    const del=document.createElement('span'); del.className='del'; del.innerHTML='<i class="ic ic-x solo"></i>'; del.title='Delete from library';
+    del.onclick=async ev=>{ ev.stopPropagation();
+      if(!confirm('Delete "'+(st.name||'piece')+'" from the library?'+(Lib.state().mode==='folder'?'\n\nThis deletes the file '+st._file+' from the folder.':''))) return;
+      try{ await Lib.remove(st); if(editing&&editing._file===st._file) editing=null; }catch(e){ alert(e.message||e); } refreshLib(); };
+    d.append(im,nm,del); d.onclick=async()=>{ await loadPiece(st); editing=st; }; wrap.appendChild(d);
+  }
+}
+async function saveToLib(st,old){
+  try{ await Lib.save(st,old); return true; }catch(e){ alert(e.message||String(e)); return false; }
+}
+$('savePiece').addEventListener('click',async()=>{
+  if(!foot.size){ alert('Shape the piece first (Shape tool, or paint a hex).'); return; }
+  const name=($('pieceName').value||'').trim(); if(!name){ alert('Give the piece a name.'); $('pieceName').focus(); return; }
+  const st=buildPiece(name), lib=await Lib.list();
+  // same name as the piece being edited -> overwrite it; a new name -> a new piece (the old one stays)
+  let old=(editing&&editing.name===name)?lib.find(x=>x._file===editing._file)||null:null;
+  if(!old){ const clash=lib.find(x=>x.name===name)||((Lib.state().mode==='folder'&&await Lib.fileExists(Lib.fileFor(st)))?{name,_file:Lib.fileFor(st)}:null);
+    if(clash){ if(!confirm('A piece named "'+name+'" already exists. Overwrite it?')) return; old=clash; } }
+  if(!(await saveToLib(st,old))) return;
+  editing=st; await refreshLib();
+  flash('Saved "'+name+'" ('+st.cells.length+' hex'+(st.cells.length===1?'':'es')+')'+(st._file?' to '+st._file:''));
+});
+$('exportOne').addEventListener('click',()=>{
+  if(!foot.size){ alert('Shape the piece first.'); return; }
+  const name=($('pieceName').value||'piece').trim(); dlText(JSON.stringify(buildPiece(name)), slug(name)+'.stamp.json');
+});
+$('exportAll').addEventListener('click',async()=>{ const lib=await Lib.list(); if(!lib.length){ alert('The library is empty.'); return; }
+  dlText(JSON.stringify({format:'falldin-stamp-pack',version:1,stamps:lib}),'falldin-pieces.pack.json'); });
+$('importFile').addEventListener('change',e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  const rd=new FileReader(); rd.onload=async()=>{ let d; try{ d=JSON.parse(rd.result); }catch(err){ alert('Could not read that file.'); return; }
+    const add=(d.format==='falldin-stamp-pack')?(d.stamps||[]):(d.format==='falldin-stamp'?[d]:[]);
+    if(!add.length){ alert('Not a Falldin piece file.'); return; }
+    const lib=await Lib.list(); let n=0;
+    for(const st of add){ if(!(await saveToLib(st, lib.find(x=>x.name===st.name)||null))) break; n++; }
+    await refreshLib(); flash('Imported '+n+' piece(s)');
+    if(add.length===1&&n===1){ await loadPiece(add[0]); editing=add[0]; }
+  };
+  rd.readAsText(f);
+});
+$('libChoose').addEventListener('click',async()=>{
+  try{ await Lib.choose(); }catch(e){ if(e&&e.name==='AbortError') return; alert('Could not open that folder: '+(e.message||e)); return; }
+  editing=null; await refreshLib();
+  const n=Lib.browserPieces().length;
+  if(n&&confirm(n+' piece(s) are kept in browser storage. Copy them into this folder now?')) $('libCopy').click();
+});
+$('libReconnect').addEventListener('click',async()=>{ try{ await Lib.reconnect(); }catch(e){ alert(e.message||e); } editing=null; refreshLib(); });
+$('libRefresh').addEventListener('click',()=>refreshLib());
+$('libCopy').addEventListener('click',async()=>{
+  try{ const r=await Lib.copyBrowserPieces(); flash('Copied '+r.copied+' piece(s) into the folder'+(r.skipped?' · '+r.skipped+' already there':'')); }
+  catch(e){ alert('Copy failed: '+(e.message||e)); }
+  refreshLib();
+});
+
+/* ============================================================
+   UI WIRING
+   ============================================================ */
+function flash(msg){ const s=$('status'); clearTimeout(flash._t); if(!flash._old) flash._old=s.textContent;
+  s.textContent=msg; s.style.color='var(--gold)'; flash._t=setTimeout(()=>{ s.style.color=''; s.textContent=flash._old; flash._old=null; },2200); }
+const HINTS={shape:'Shape: click or drag hexes to add them to the piece; start on a piece hex to remove instead.',
+  paint:'Paint: pick a tile on the left, then click or drag. Right-click erases.',
+  erase:'Erase: removes the top item of the active layer.',
+  select:'Select: click anything in the piece to adjust it. Drag moves, scroll resizes.',
+  pan:'Pan: drag to move the view. Ctrl+scroll zooms.'};
+function setTool(t){ tool=t; document.querySelectorAll('.tool-btns button[data-tool]').forEach(x=>x.classList.toggle('active',x.dataset.tool===t));
+  if(t!=='select'){ sel=null; syncObjUI(); } $('stageHint').textContent=HINTS[t]||''; board.style.cursor=t==='pan'?'grab':'crosshair'; draw(); }
+document.querySelectorAll('.tool-btns button[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+function setLayer(l){ layer=l; document.querySelectorAll('.layer-btns button').forEach(x=>x.classList.toggle('active',x.dataset.layer===l)); }
+document.querySelectorAll('.layer-btns button').forEach(b=>b.onclick=()=>setLayer(b.dataset.layer));
+function rotBrush(d){ brushStep=((brushStep+d)%6+6)%6; $('vRot').textContent=(brushStep*60)+'°'; }
+$('rotL').onclick=()=>rotBrush(-1); $('rotR').onclick=()=>rotBrush(1);
+function refreshFacts(){
+  const n=foot.size; let filled=0; for(const k of foot){ const c=cells.get(k); if(c&&(c.base||c.lines.length||c.features.length)) filled++; }
+  $('shapeFacts').innerHTML=n?('Piece: <b>'+n+' hex'+(n===1?'':'es')+'</b> · '+filled+' filled'):'No hexes in the piece yet.';
+}
+function setTileFill(v){ tileFill=v; $('tileFill').value=Math.round(v*100); $('vFill').textContent=Math.round(v*100)+'%'; }
+function setNative(v){ nativeSize=!!v; $('nativeSize').checked=nativeSize; }
+function setExtraK(v){ extraK=v; $('extraK').value=Math.round(v*100); $('vExtraK').textContent=Math.round(v*100)+'%'; }
+$('nativeSize').addEventListener('change',e=>{ nativeSize=e.target.checked; draw(); });
+$('extraK').addEventListener('input',e=>{ extraK=+e.target.value/100; $('vExtraK').textContent=e.target.value+'%'; draw(); });
+$('tileFill').addEventListener('input',e=>{ tileFill=+e.target.value/100; $('vFill').textContent=e.target.value+'%'; draw(); });
+function zoomTo(v,ax,ay){ v=Math.max(30,Math.min(220,v)); if(ax===undefined){ ax=board.width/2; ay=board.height/2; }
+  const k=v/grid.hex; cam.x=(cam.x+ax)*k-ax; cam.y=(cam.y+ay)*k-ay; grid.hex=v; $('hexSize').value=Math.round(v); $('vHex').textContent=Math.round(v); draw(); }
+$('hexSize').addEventListener('input',e=>zoomTo(+e.target.value));
+$('cols').addEventListener('change',e=>{ grid.cols=Math.max(3,Math.min(60,+e.target.value||3)); centreView(); draw(); });
+$('rows').addEventListener('change',e=>{ grid.rows=Math.max(3,Math.min(60,+e.target.value||3)); centreView(); draw(); });
+$('showGrid').addEventListener('change',e=>{ showGrid=e.target.checked; draw(); });
+$('showOutline').addEventListener('change',e=>{ showOutline=e.target.checked; draw(); });
+$('showSurround').addEventListener('change',e=>{ showSurround=e.target.checked; draw(); });
+function setSurround(t){ surroundTile=t; $('surroundName').textContent=t?t.base.replace(/^Hex - /,''):'none'; if(t) ensureImg(t); draw(); }
+$('useSurround').addEventListener('click',()=>{ if(!activeTile){ alert('Pick a tile in the palette first.'); return; } setSurround(activeTile); });
+$('clearWs').addEventListener('click',()=>{ if(!foot.size) return; if(!confirm('Clear the whole piece?')) return; pushHistory(); foot=new Set(); cells=new Map(); sel=null; syncObjUI(); refreshFacts(); draw(); });
+$('newPiece').addEventListener('click',()=>{ if(foot.size && !confirm('Start a new piece? Unsaved changes to this one are lost (Ctrl+Z brings them back).')) return;
+  pushHistory(); foot=new Set(); cells=new Map(); sel=null; $('pieceName').value=''; editing=null; syncObjUI(); refreshFacts(); draw(); });
+
+/* ---- palette ---- */
+function buildCatTabs(){ const wrap=$('catTabs'); wrap.innerHTML='';
+  Object.keys(cats).sort((a,b)=>{const ia=CAT_ORDER.indexOf(a),ib=CAT_ORDER.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);})
+    .forEach(k=>{ const b=document.createElement('button'); b.textContent=k.replace('Extras · ','+ ')+' ('+cats[k].length+')'; b.dataset.cat=k; b.onclick=()=>selectCat(k); wrap.appendChild(b); }); }
+let curCat=null;
+function selectCat(k){ curCat=k; [...$('catTabs').children].forEach(b=>b.classList.toggle('active',b.dataset.cat===k));
+  const scroll=$('tileScroll'); scroll.innerHTML='';
+  for(const t of cats[k]){ const d=document.createElement('div'); d.className='tile-thumb'+(t===activeTile?' sel':''); d.title=t.base;
+    const im=document.createElement('img'); im.loading='lazy'; im.src=t.url; d.appendChild(im);
+    if(t.dir){ const s=document.createElement('span'); s.className='dir'; s.textContent=t.dir; d.appendChild(s); }
+    d.onclick=()=>{ activeTile=t; ensureImg(t); [...scroll.children].forEach(x=>x.classList.remove('sel')); d.classList.add('sel');
+      if(t.cat==='Rivers'||t.cat==='Paths') setLayer('lines'); else if(/Extras/.test(t.cat)||t.cat==='Urban') setLayer('features'); else setLayer('base');
+      if(tool!=='paint') setTool('paint'); };
+    scroll.appendChild(d); } }
+function afterIngest(res){
+  if(!res) return; buildCatTabs(); selectCat(curCat&&cats[curCat]?curCat:Object.keys(cats)[0]);
+  $('palEmpty')&&($('palEmpty').style.display='none');
+  if(!surroundTile){ const t=(cats['Plains']||cats['Base']||[]).find(x=>!x.dir); if(t) setSurround(t); }
+  const nx=tiles.filter(t=>/^Extras/.test(t.cat)).length, dpis=[...new Set(tiles.map(t=>t.dpi).filter(Boolean))].sort((a,b)=>a-b).join('/');
+  $('status').textContent=tiles.length+' tiles · '+nx+' extras'+(res.dropped?' · '+res.dropped+' dupes skipped':'')+(dpis?' · '+dpis+' DPI':'');
+  refreshLib(); draw();
+}
+$('tileFolder').addEventListener('change',e=>{ afterIngest(ingest(e.target.files)); e.target.value=''; });
+$('tileFiles').addEventListener('change',e=>{ afterIngest(ingest(e.target.files)); e.target.value=''; });
+
+/* ---- canvas interaction ---- */
+function evtPix(e){ const r=board.getBoundingClientRect(); return {x:(e.clientX-r.left)*(board.width/r.width), y:(e.clientY-r.top)*(board.height/r.height)}; }
+function evtWorld(e){ const p=evtPix(e); return {x:p.x+cam.x, y:p.y+cam.y}; }
+function evtHex(e){ const w=evtWorld(e); return pixelToHex(w.x,w.y); }
+let painting=false, strokeSeen=null, shapeMode=null, dragStart=null, panning=false, panStart=null, spaceDown=false;
+board.addEventListener('mousedown',e=>{
+  if(e.button===1||spaceDown||tool==='pan'){ panning=true; panStart={mx:e.clientX,my:e.clientY,cx:cam.x,cy:cam.y}; e.preventDefault(); return; }
+  const w=evtWorld(e);
+  if(tool==='select'){
+    const hit=hitTest(w.x,w.y); sel=hit?{k:hit.k,layer:hit.layer,i:hit.i}:null; syncObjUI();
+    const o=selObj(); if(o&&e.button===0){ pushHistory(); dragStart={wx:w.x,wy:w.y,dx:o.dx||0,dy:o.dy||0}; painting=true; }
+    draw(); return;
+  }
+  const h=evtHex(e); if(!h) return; const k=K(...h);
+  pushHistory(); painting=true; strokeSeen=new Set([k]);
+  if(tool==='shape'){ shapeMode=foot.has(k)?'remove':'add'; setFoot(k,shapeMode==='add'); }
+  else if(e.button===2||tool==='erase') erase(...h);
+  else place(...h);
+  refreshFacts(); draw();
+});
+board.addEventListener('mousemove',e=>{
+  if(panning){ cam.x=panStart.cx-(e.clientX-panStart.mx); cam.y=panStart.cy-(e.clientY-panStart.my); draw(); return; }
+  if(!painting) return;
+  if(tool==='select'){ const o=selObj(); if(!o||!dragStart) return; const w=evtWorld(e);
+    o.dx=dragStart.dx+(w.x-dragStart.wx)/hexW(); o.dy=dragStart.dy+(w.y-dragStart.wy)/hexW(); draw(); return; }
+  const h=evtHex(e); if(!h) return; const k=K(...h); if(strokeSeen.has(k)) return; strokeSeen.add(k);
+  if(tool==='shape') setFoot(k,shapeMode==='add'); else if((e.buttons&2)||tool==='erase') erase(...h); else place(...h);
+  refreshFacts(); draw();
+});
+window.addEventListener('mouseup',()=>{ painting=false; panning=false; dragStart=null; shapeMode=null; });
+board.addEventListener('contextmenu',e=>e.preventDefault());
+board.addEventListener('dblclick',e=>{ if(tool!=='select') return; const o=selObj(); if(!o) return; pushHistory(); resetObj(o); if(o.a!==undefined) fitArt(o); syncObjUI(); draw(); });
+board.addEventListener('wheel',e=>{
+  if(e.ctrlKey){ e.preventDefault(); const p=evtPix(e); zoomTo(grid.hex*(e.deltaY<0?1.1:1/1.1),p.x,p.y); return; }
+  if(tool==='select'){ const o=selObj(); if(o){ e.preventDefault(); if(!wheelHist){ pushHistory(); wheelHist=true; setTimeout(()=>wheelHist=false,600); }
+    o.sc=Math.max(0.1,Math.min(5,(o.sc||1)*(e.deltaY<0?1.05:1/1.05))); syncObjUI(); draw(); return; } }
+  if(tool==='paint'&&layer==='lines'){ e.preventDefault(); rotBrush(e.deltaY>0?1:-1); return; }
+  e.preventDefault(); cam.x+=e.deltaX; cam.y+=e.deltaY; draw();
+},{passive:false});
+let wheelHist=false;
+window.addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA|SELECT/.test((document.activeElement&&document.activeElement.tagName)||'');
+  if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')){ if(typing) return; e.preventDefault(); undo(); return; }
+  if(typing) return;
+  if(e.key===' '){ spaceDown=true; e.preventDefault(); return; }
+  const o=tool==='select'?selObj():null;
+  if(e.key==='r'||e.key==='R'){ if(o){ pushHistory(); o.rot=(o.rot||0)+(e.shiftKey?-1:1)*Math.PI/12; syncObjUI(); draw(); } else rotBrush(e.shiftKey?-1:1); return; }
+  if(o&&(e.key==='Delete'||e.key==='Backspace')){ e.preventDefault(); deleteSel(); return; }
+  if(e.key==='Escape'){ sel=null; syncObjUI(); draw(); return; }
+  if(o&&e.key.startsWith('Arrow')){ e.preventDefault(); const s=e.shiftKey?0.05:0.01; pushHistory();
+    if(e.key==='ArrowUp')o.dy-=s; else if(e.key==='ArrowDown')o.dy+=s; else if(e.key==='ArrowLeft')o.dx-=s; else o.dx+=s; draw(); }
+});
+window.addEventListener('keyup',e=>{ if(e.key===' ') spaceDown=false; });
+
+/* ---- boot ---- */
+function centreView(){ cam.x=(worldW()-board.width)/2; cam.y=(worldH()-board.height)/2; }
+function fitBoard(){ board.width=stage.clientWidth||820; board.height=stage.clientHeight||620; centreView(); draw(); }
+window.addEventListener('resize',fitBoard);
+if(window.ResizeObserver) new ResizeObserver(fitBoard).observe(stage);
+setTool('paint'); refreshFacts(); fitBoard(); Lib.init().then(refreshLib);
+</script>
+</body>
+</html>

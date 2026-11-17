@@ -1,0 +1,511 @@
+
+<title>Falldin hexmapper — Stamp Creator</title>
+<style>
+:root{--bg:#0E1720;--surface:#162030;--surface2:#1D2C40;--border:#273D58;--ink:#CFC5A8;--ink-dim:#7A8FA0;--gold:#C9A84C;--radius:5px;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:Georgia,'Times New Roman',serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;padding:0.7rem 1.1rem;border-bottom:1px solid var(--border);background:var(--surface);}
+.topbar h1{font-size:1.1rem;font-weight:normal;}.topbar h1 em{color:var(--gold);font-style:italic;}
+.topbar .spacer{flex:1;}
+button,.filebtn{font-family:Georgia,serif;font-size:0.8rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border);border-radius:var(--radius);padding:0.38rem 0.7rem;cursor:pointer;white-space:nowrap;transition:border-color .15s,background .15s;}
+button:hover,.filebtn:hover{border-color:var(--gold);background:var(--surface);}
+button.active{border-color:var(--gold);color:var(--gold);background:var(--surface2);}
+input[type=file]{display:none;}
+.workspace{display:flex;flex:1;min-height:0;}
+.palette{width:250px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0;}
+.cat-tabs{display:flex;flex-wrap:wrap;gap:0.25rem;padding:0.6rem;border-bottom:1px solid var(--border);max-height:40vh;overflow-y:auto;flex-shrink:0;}
+.cat-tabs button{font-size:0.66rem;padding:0.22rem 0.4rem;}
+.tile-scroll{flex:1;overflow-y:auto;padding:0.6rem;display:grid;grid-template-columns:repeat(3,1fr);gap:0.4rem;align-content:start;}
+.tile-thumb{position:relative;aspect-ratio:224/194;background:var(--surface2);border:1px solid var(--border);border-radius:3px;cursor:pointer;overflow:hidden;}
+.tile-thumb img{width:100%;height:100%;object-fit:contain;}
+.tile-thumb:hover{border-color:var(--gold);}
+.tile-thumb.sel{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold);}
+.tile-thumb .dir{position:absolute;bottom:1px;right:2px;font-size:0.55rem;color:var(--gold);background:rgba(0,0,0,0.6);padding:0 2px;border-radius:2px;}
+.palette-empty{padding:1.4rem;font-size:0.8rem;color:var(--ink-dim);line-height:1.6;text-align:center;}
+.palette-empty strong{color:var(--gold);}
+.stage{flex:1;overflow:hidden;position:relative;background:repeating-linear-gradient(45deg,#0c141c 0 12px,#0e1720 12px 24px);}
+#board{display:block;cursor:crosshair;}
+.panel{width:260px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface);padding:1rem;overflow-y:auto;display:flex;flex-direction:column;gap:1.1rem;}
+.pgroup h2{font-size:0.64rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold);font-weight:normal;margin-bottom:0.6rem;border-bottom:1px solid var(--border);padding-bottom:0.35rem;}
+.ctrl{margin-bottom:0.7rem;}.ctrl:last-child{margin-bottom:0;}
+.ctrl label{display:flex;justify-content:space-between;font-size:0.7rem;letter-spacing:0.05em;color:var(--ink-dim);text-transform:uppercase;margin-bottom:0.3rem;}
+.ctrl label .val{color:var(--gold);}
+input[type=range]{width:100%;accent-color:var(--gold);}
+input[type=number],input[type=text]{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--ink);font-family:Georgia,serif;font-size:0.8rem;padding:0.35rem 0.5rem;border-radius:var(--radius);}
+input:focus{border-color:var(--gold);outline:none;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;}
+.layer-btns,.tool-btns{display:flex;gap:0.35rem;flex-wrap:wrap;}
+.layer-btns button,.tool-btns button{flex:1;font-size:0.72rem;padding:0.4rem 0.2rem;}
+.toggle-row{display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;font-size:0.82rem;cursor:pointer;}
+.toggle-row input{accent-color:var(--gold);width:14px;height:14px;}
+.hintline{font-size:0.68rem;color:var(--ink-dim);line-height:1.5;font-style:italic;}
+kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:0 4px;font-size:0.7rem;font-family:inherit;}
+#libList{display:grid;grid-template-columns:repeat(2,1fr);gap:0.4rem;max-height:240px;overflow-y:auto;margin-top:0.5rem;}
+.lib-item{position:relative;background:var(--surface2);border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:0.3rem;text-align:center;}
+.lib-item:hover{border-color:var(--gold);}
+.lib-item img{width:100%;height:56px;object-fit:contain;display:block;background:#0c141c;border-radius:2px;}
+.lib-item .nm{font-size:0.6rem;color:var(--ink-dim);margin-top:0.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lib-item .del{position:absolute;top:0;right:4px;color:#ffb0a0;font-size:0.75rem;opacity:0.55;}
+.lib-item .del:hover{opacity:1;}
+</style>
+
+<div class="topbar">
+  <h1>Falldin <em>hexmapper</em> · Stamp Creator</h1>
+  <label class="filebtn" for="tileFolder">📂 Load Tile Folder</label>
+  <input type="file" id="tileFolder" webkitdirectory directory multiple>
+  <span id="status" style="font-size:0.72rem;color:var(--ink-dim);">no tiles loaded</span>
+  <span class="spacer"></span>
+  <button id="newStamp">✧ New</button>
+  <button id="exportAll">⭳ Export Library</button>
+  <label class="filebtn" for="importFile">⭱ Import</label>
+  <input type="file" id="importFile" accept=".json">
+</div>
+
+<div class="workspace">
+  <div class="palette">
+    <div class="cat-tabs" id="catTabs"></div>
+    <div class="tile-scroll" id="tileScroll">
+      <div class="palette-empty" id="palEmpty">
+        Click <strong>Load Tile Folder</strong> and choose<br><br>
+        <strong>…\World+Map+Hex+Tiles\Assets - 72 DPI (VTT)</strong><br><br>
+        Every hex tile <em>and</em> all the Extras (towns, buildings, banners) load here.
+      </div>
+    </div>
+  </div>
+
+  <div class="stage" id="stage"><canvas id="board" width="800" height="600"></canvas></div>
+
+  <div class="panel">
+    <div class="pgroup">
+      <h2>Tool</h2>
+      <div class="tool-btns">
+        <button data-tool="paint" class="active">✎ Paint</button>
+        <button data-tool="erase">✕ Erase</button>
+        <button data-tool="recenter">✥ Move / Size</button>
+      </div>
+      <div class="ctrl" id="scaleCtrl" style="display:none;margin-top:0.6rem;">
+        <label>Selected hex size <span class="val" id="vCellScale">100%</span></label>
+        <input type="range" id="cellScale" min="40" max="500" value="100">
+        <label style="margin-top:0.55rem;">Hue shift <span class="val" id="vCellHue">0°</span></label>
+        <input type="range" id="cellHue" min="0" max="360" value="0"
+               style="background:linear-gradient(to right,#f66,#ff6,#6f6,#6ff,#66f,#f6f,#f66);border-radius:3px;">
+        <label style="margin-top:0.55rem;">Saturation <span class="val" id="vCellSat">100%</span></label>
+        <input type="range" id="cellSat" min="0" max="250" value="100">
+        <p class="hintline" style="margin-top:0.3rem;">Click a hex, then drag to move · scroll or the slider to enlarge · recolour with hue/saturation · double-click resets everything.</p>
+      </div>
+      <div class="ctrl" style="margin-top:0.6rem;">
+        <label>Rotation <span class="val" id="vRot">0°</span></label>
+        <div class="tool-btns"><button id="rotL">↺ −60°</button><button id="rotR">↻ +60°</button></div>
+      </div>
+      <div style="margin-top:0.5rem;">
+        <label class="toggle-row"><input type="checkbox" id="riverConnect" checked>Auto-connect rivers/paths</label>
+        <label class="toggle-row"><input type="checkbox" id="randVariant">Randomize terrain variant</label>
+      </div>
+      <p class="hintline" style="margin-top:0.5rem;"><kbd>Ctrl+Z</kbd> undo · <kbd>R</kbd>/scroll rotates · click a placed river again to rotate it · <b>✥</b> drag/arrows to nudge an off-centre tile.</p>
+    </div>
+
+    <div class="pgroup">
+      <h2>Active Layer</h2>
+      <div class="layer-btns">
+        <button data-layer="base" class="active">Terrain</button>
+        <button data-layer="lines">River/Path</button>
+        <button data-layer="features">Feature</button>
+      </div>
+    </div>
+
+    <div class="pgroup">
+      <h2>Workspace</h2>
+      <div class="row2">
+        <div class="ctrl"><label>Columns</label><input type="number" id="cols" value="10" min="1" max="60"></div>
+        <div class="ctrl"><label>Rows</label><input type="number" id="rows" value="8" min="1" max="60"></div>
+      </div>
+      <div class="ctrl"><label>Hex size <span class="val" id="vHex">72</span></label><input type="range" id="hexSize" min="24" max="140" value="72"></div>
+      <div class="ctrl"><label>Tile fill <span class="val" id="vFill">200%</span></label><input type="range" id="tileFill" min="80" max="300" value="200"></div>
+      <label class="toggle-row"><input type="checkbox" id="showGrid" checked>Show hex grid</label>
+      <button id="clearWs" style="width:100%;margin-top:0.5rem;border-color:#9b4030;color:#ffb0a0;">Clear Workspace</button>
+    </div>
+
+    <div class="pgroup">
+      <h2>Save Stamp</h2>
+      <div class="ctrl"><label>Name</label><input type="text" id="stampName" placeholder="e.g. walled city"></div>
+      <button id="saveStamp" style="width:100%;border-color:var(--gold);color:var(--gold);">💾 Save to Library</button>
+      <button id="exportOne" style="width:100%;margin-top:0.4rem;">⭳ Export this Stamp (.json)</button>
+      <p class="hintline" style="margin-top:0.4rem;">Stamps store <b>tile names</b>, so the map tool draws them at 72 DPI while editing and re-composites at 300 DPI on final render.</p>
+    </div>
+
+    <div class="pgroup">
+      <h2>Library</h2>
+      <div id="libList"></div>
+      <p class="hintline" style="margin-top:0.4rem;">Click a stamp to load it back into the workspace for editing.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const board=$('board'), ctx=board.getContext('2d'), stage=$('stage');
+
+// ---- state ----
+let tiles=[], index={}, cats={}, activeTile=null;
+let tool='paint', layer='base';
+let cells=new Map();                 // "c,r" -> {base, lines:[{t,rot}], features:[{t,rot}], ox, oy}
+const grid={cols:10,rows:8,hex:72};
+let tileFill=2.0, showGrid=true, brushStep=0;
+let cam={x:0,y:0};
+const OPP={N:'S',S:'N',NE:'SW',SW:'NE',SE:'NW',NW:'SE',E:'W',W:'E'};
+const LS_LIB='falldin_stamp_lib_v3';
+
+// ---- hex math (flat-top; odd columns shifted down) ----
+function hexW(){ return grid.hex; }
+function hexH(){ return grid.hex*(194/224); }
+function colStep(){ return hexW()*0.75; }
+function rowStep(){ return hexH(); }
+function hexCenter(c,r){ return { x:c*colStep()+hexW()/2, y:r*rowStep()+hexH()/2+((c&1)?hexH()/2:0) }; }
+function worldW(){ return (grid.cols-1)*colStep()+hexW(); }
+function worldH(){ return grid.rows*rowStep()+hexH()/2; }
+function neighbor(c,r,dir){ const even=!(c&1);
+  switch(dir){ case 'N': return [c,r-1]; case 'S': return [c,r+1];
+    case 'NE': return even?[c+1,r-1]:[c+1,r]; case 'SE': return even?[c+1,r]:[c+1,r+1];
+    case 'NW': return even?[c-1,r-1]:[c-1,r]; case 'SW': return even?[c-1,r]:[c-1,r+1];
+    default: return null; } }
+function pixelToHex(px,py){
+  const ac=Math.max(0,Math.floor(px/colStep())), ar=Math.max(0,Math.floor(py/rowStep()));
+  let best=null,bd=1e18;
+  for(let c=ac-1;c<=ac+1;c++)for(let r=ar-1;r<=ar+1;r++){
+    if(c<0||r<0||c>=grid.cols||r>=grid.rows) continue;
+    const ctr=hexCenter(c,r), d=(ctr.x-px)**2+(ctr.y-py)**2; if(d<bd){bd=d;best=[c,r];} }
+  return best;
+}
+
+// ---- tile ingest (hex tiles + Extras) ----
+// Duplicate control: the pack ships the SAME filename at 72/150/300 DPI, so loading the whole pack
+// would list every tile 3×. "Extended" shares no filenames with the base set, so it's kept in full.
+// 300 DPI ships as .webp; 150 DPI has a literal "Extras - Copy" duplicate folder.
+const DPI_PREF=[72,150,300];                      // which copy wins when a name appears more than once
+function dpiOf(p){ const m=p.match(/(\d{2,3})\s*DPI/i); return m?+m[1]:0; }
+function dpiRank(d){ const i=DPI_PREF.indexOf(d); return i<0?99:i; }
+function ingest(fileList){
+  const files=[...fileList].filter(f=>/\.(png|webp)$/i.test(f.name));
+  if(!files.length){ alert('No tile images (.png/.webp) found in that folder.'); return null; }
+  const best=new Map(); let dropped=0;
+  for(const f of files){
+    const path=f.webkitRelativePath||f.name;
+    if(/Extras\s*-\s*Copy/i.test(path)){ dropped++; continue; }
+    const base=f.name.replace(/\.(png|webp)$/i,'');
+    const d=dpiOf(path), cur=best.get(base);
+    if(cur){ dropped++; if(dpiRank(d)>=dpiRank(cur.dpi)) continue; }
+    best.set(base,{f,dpi:d,path});
+  }
+  tiles=[]; index={}; cats={};
+  for(const [base,rec] of best){
+    const m=base.match(/ (N|NE|E|SE|S|SW|W|NW)$/);
+    const dir=m?m[1]:null, prefix=dir?base.slice(0,m.index):base;
+    const t={base,url:URL.createObjectURL(rec.f),img:null,cat:categorize(base,rec.path),dir,prefix,dpi:rec.dpi};
+    tiles.push(t); index[base]=t; (cats[t.cat]=cats[t.cat]||[]).push(t);
+  }
+  return {dropped};
+}
+$('tileFolder').addEventListener('change',e=>{
+  const res=ingest(e.target.files); if(!res) return;
+  buildCatTabs(); selectCat(Object.keys(cats)[0]);
+  $('palEmpty') && ($('palEmpty').style.display='none');
+  const nx=tiles.filter(t=>/^Extras/.test(t.cat)).length;
+  const dpis=[...new Set(tiles.map(t=>t.dpi).filter(Boolean))].sort((a,b)=>a-b).join('/');
+  $('status').textContent=tiles.length+' tiles · '+nx+' extras'
+    +(res.dropped?' · '+res.dropped+' dupes skipped':'')+(dpis?' · '+dpis+' DPI':'');
+  if(!nx) $('status').textContent+=' ⚠ no Extras found';
+  refreshLib(); draw();
+});
+function categorize(base,path){
+  // Extras sit in an "Extras" subfolder AND never start with "Hex - " — check both so it works
+  // even when the browser gives us no relative path.
+  if(/Extras/i.test(path) || !/^Hex\s*-/i.test(base)){
+    if(/Building|City|Town|Farm|Tower|Monastery|Wall/i.test(base)) return 'Extras · Towns';
+    if(/Banner|Statue/i.test(base)) return 'Extras · Markers';
+    return 'Extras · Misc';
+  }
+  const b=base.replace(/^Hex - /i,'');
+  if(/^Base/i.test(b)) return 'Base';
+  if(/River/i.test(b)) return 'Rivers';
+  if(/Path/i.test(b)) return 'Paths';
+  if(/Coast|Beach/i.test(b)) return 'Coast';
+  if(/Water|Ocean|Swamp/i.test(b)) return 'Water';
+  if(/Mountain/i.test(b)) return 'Mountains';
+  if(/Hill/i.test(b)) return 'Hills';
+  if(/Forest|Tree/i.test(b)) return 'Forest';
+  if(/Plains/i.test(b)) return 'Plains';
+  if(/Snow/i.test(b)) return 'Snow';
+  if(/Wetland/i.test(b)) return 'Wetlands';
+  if(/Urban|Ruin/i.test(b)) return 'Urban';
+  return 'Other';
+}
+const CAT_ORDER=['Base','Plains','Hills','Forest','Mountains','Water','Coast','Snow','Wetlands','Rivers','Paths','Urban','Other','Extras · Towns','Extras · Markers','Extras · Misc'];
+function buildCatTabs(){
+  const wrap=$('catTabs'); wrap.innerHTML='';
+  Object.keys(cats).sort((a,b)=>{const ia=CAT_ORDER.indexOf(a),ib=CAT_ORDER.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);})
+    .forEach(k=>{ const b=document.createElement('button'); b.textContent=k.replace('Extras · ','+ ')+' ('+cats[k].length+')'; b.dataset.cat=k; b.onclick=()=>selectCat(k); wrap.appendChild(b); });
+}
+function selectCat(k){
+  [...$('catTabs').children].forEach(b=>b.classList.toggle('active',b.dataset.cat===k));
+  const scroll=$('tileScroll'); scroll.innerHTML='';
+  for(const t of cats[k]){
+    const d=document.createElement('div'); d.className='tile-thumb'; d.title=t.base;
+    const im=document.createElement('img'); im.loading='lazy'; im.src=t.url; d.appendChild(im);
+    if(t.dir){ const s=document.createElement('span'); s.className='dir'; s.textContent=t.dir; d.appendChild(s); }
+    d.onclick=()=>{ activeTile=t; [...scroll.children].forEach(x=>x.classList.remove('sel')); d.classList.add('sel');
+      if(t.cat==='Rivers'||t.cat==='Paths') setLayer('lines');
+      else if(/Extras/.test(t.cat)||t.cat==='Urban') setLayer('features');
+      else setLayer('base'); };
+    scroll.appendChild(d);
+  }
+}
+function ensureImg(t,cb){ if(t.img){cb(t.img);return;} const im=new Image(); im.onload=()=>{t.img=im;cb(im);}; im.src=t.url; }
+
+// ---- undo (stamps are small: full snapshots are fine) ----
+let history=[];
+function cloneCell(c){ return c?{base:c.base,lines:[...c.lines],features:[...c.features],ox:c.ox||0,oy:c.oy||0,sc:c.sc||1,hue:c.hue||0,sat:(c.sat===undefined?1:c.sat)}:null; }
+function pushHistory(){ const m=new Map(); for(const [k,v] of cells) m.set(k,cloneCell(v)); history.push(m); if(history.length>50) history.shift(); }
+
+// ---- placement ----
+function place(c,r){
+  if(!activeTile) return;
+  let put=activeTile;
+  if(layer==='base' && $('randVariant').checked && !activeTile.dir){
+    const pool=(cats[activeTile.cat]||[]).filter(t=>!t.dir); if(pool.length) put=pool[(Math.random()*pool.length)|0]; }
+  const rot=brushStep*Math.PI/3, key=c+','+r;
+  let cell=cells.get(key); if(!cell){cell={base:null,lines:[],features:[]};cells.set(key,cell);}
+  if(layer==='base'){ cell.base=put; }
+  else if(layer==='lines'){
+    const li=cell.lines.findIndex(o=>o.t===put);
+    if(li>=0){ const cur=cell.lines[li]; cell.lines[li]={t:cur.t,rot:((Math.round(cur.rot/(Math.PI/3))+1)%6)*(Math.PI/3)}; draw(); return; }
+    cell.lines.push({t:put,rot});
+    if($('riverConnect').checked && brushStep===0 && put.dir && OPP[put.dir]){
+      const nb=neighbor(c,r,put.dir);
+      if(nb && nb[0]>=0&&nb[1]>=0&&nb[0]<grid.cols&&nb[1]<grid.rows){
+        const opp=index[put.prefix+OPP[put.dir]];
+        if(opp){ const nk=nb.join(','); let nc=cells.get(nk); if(!nc){nc={base:null,lines:[],features:[]};cells.set(nk,nc);}
+          if(!nc.lines.some(o=>o.t===opp&&o.rot===0)) nc.lines.push({t:opp,rot:0}); }
+      }
+    }
+  }
+  else { if(!cell.features.some(o=>o.t===put&&o.rot===rot)) cell.features.push({t:put,rot}); }
+  draw();
+}
+function erase(c,r){
+  const key=c+','+r, cell=cells.get(key); if(!cell) return;
+  if(layer==='base') cell.base=null; else if(layer==='lines') cell.lines.pop(); else cell.features.pop();
+  if(!cell.base&&!cell.lines.length&&!cell.features.length) cells.delete(key);
+  draw();
+}
+
+// ---- render (small workspace: full redraw is cheap) ----
+let rafPending=false;
+function draw(){ if(rafPending)return; rafPending=true; requestAnimationFrame(()=>{rafPending=false; render();}); }
+function drawTile(o,sx,sy,dw,dh){ const t=o.t; if(!t.img){ ensureImg(t,()=>draw()); return; }
+  if(o.rot){ ctx.save(); ctx.translate(sx,sy); ctx.rotate(o.rot); ctx.drawImage(t.img,-dw/2,-dh/2,dw,dh); ctx.restore(); }
+  else ctx.drawImage(t.img,sx-dw/2,sy-dh/2,dw,dh); }
+function cellFilter(cell){                       // hue / saturation recolouring
+  const h=cell.hue||0, s=(cell.sat===undefined?1:cell.sat);
+  if(!h && s===1) return 'none';
+  return (h?'hue-rotate('+h+'deg) ':'')+(s!==1?'saturate('+s+')':'');
+}
+function drawCell(cell,ctr,dw0,dh0){
+  const sc=cell.sc||1, dw=dw0*sc, dh=dh0*sc;
+  const sx=ctr.x-cam.x+(cell.ox||0), sy=ctr.y-cam.y+(cell.oy||0);
+  const fl=cellFilter(cell); if(fl!=='none') ctx.filter=fl;
+  if(cell.base){ if(cell.base.img) ctx.drawImage(cell.base.img,sx-dw/2,sy-dh/2,dw,dh); else ensureImg(cell.base,()=>draw()); }
+  for(const o of cell.lines) drawTile(o,sx,sy,dw,dh);
+  for(const o of cell.features) drawTile(o,sx,sy,dw,dh);
+  if(fl!=='none') ctx.filter='none';
+}
+function centreView(){ cam.x=(worldW()-board.width)/2; cam.y=(worldH()-board.height)/2; }
+function render(){
+  ctx.clearRect(0,0,board.width,board.height); ctx.fillStyle='#0c141c'; ctx.fillRect(0,0,board.width,board.height);
+  if(showGrid){ ctx.strokeStyle='rgba(201,168,76,0.30)'; ctx.lineWidth=1; const w=hexW()/2,h=hexH()/2;
+    for(let c=0;c<grid.cols;c++)for(let r=0;r<grid.rows;r++){ const ct=hexCenter(c,r), x=ct.x-cam.x, y=ct.y-cam.y;
+      ctx.beginPath(); ctx.moveTo(x+w,y);ctx.lineTo(x+w/2,y-h);ctx.lineTo(x-w/2,y-h);ctx.lineTo(x-w,y);ctx.lineTo(x-w/2,y+h);ctx.lineTo(x+w/2,y+h);ctx.closePath(); ctx.stroke(); } }
+  const dw=hexW()*tileFill, dh=hexH()*tileFill;
+  const vis=[...cells.entries()].map(([k,cell])=>{const i=k.indexOf(','); return {cell,ctr:hexCenter(+k.slice(0,i),+k.slice(i+1))};})
+    .sort((a,b)=>(a.ctr.y-b.ctr.y)||(a.ctr.x-b.ctr.x));
+  for(const {cell,ctr} of vis) drawCell(cell,ctr,dw,dh);
+  if(tool==='recenter' && recenterSel){ const ct=hexCenter(recenterSel[0],recenterSel[1]), x=ct.x-cam.x, y=ct.y-cam.y, w=hexW()/2, h=hexH()/2;
+    ctx.save(); ctx.strokeStyle='#66ccff'; ctx.lineWidth=2; ctx.beginPath();
+    ctx.moveTo(x+w,y);ctx.lineTo(x+w/2,y-h);ctx.lineTo(x-w/2,y-h);ctx.lineTo(x-w,y);ctx.lineTo(x-w/2,y+h);ctx.lineTo(x+w/2,y+h);ctx.closePath(); ctx.stroke(); ctx.restore(); }
+}
+
+// ---- interaction ----
+let painting=false, strokeSeen=new Set(), recenterSel=null, recenterStart=null;
+function evtPix(e){ const r=board.getBoundingClientRect(); return {x:(e.clientX-r.left)*(board.width/r.width), y:(e.clientY-r.top)*(board.height/r.height)}; }
+function evtWorld(e){ const p=evtPix(e); return {x:p.x+cam.x, y:p.y+cam.y}; }
+function evtHex(e){ const w=evtWorld(e); return pixelToHex(w.x,w.y); }
+board.addEventListener('mousedown',e=>{
+  if(tool==='recenter'){ const h=evtHex(e); if(h){ const cell=cells.get(h.join(',')); if(cell){ pushHistory(); recenterSel=h; const w=evtWorld(e);
+    recenterStart={wx:w.x,wy:w.y,ox:cell.ox||0,oy:cell.oy||0}; painting=true; syncScaleUI(cell); draw(); } } return; }
+  const h=evtHex(e); if(!h) return;
+  if(e.button===2){ pushHistory(); erase(...h); return; }
+  pushHistory(); painting=true; strokeSeen=new Set([h.join(',')]);
+  tool==='erase'?erase(...h):place(...h); });
+board.addEventListener('mousemove',e=>{
+  if(tool==='recenter'){ if(painting&&recenterSel){ const cell=cells.get(recenterSel.join(',')); if(cell){ const w=evtWorld(e);
+    cell.ox=recenterStart.ox+(w.x-recenterStart.wx); cell.oy=recenterStart.oy+(w.y-recenterStart.wy); draw(); } } return; }
+  if(!painting) return; const h=evtHex(e); if(!h) return; const k=h.join(','); if(strokeSeen.has(k)) return; strokeSeen.add(k);
+  tool==='erase'?erase(...h):place(...h); });
+window.addEventListener('mouseup',()=>{ painting=false; });
+board.addEventListener('contextmenu',e=>e.preventDefault());
+board.addEventListener('dblclick',e=>{ if(tool==='recenter'){ const h=evtHex(e); if(h){ const cell=cells.get(h.join(',')); if(cell){ pushHistory();
+  cell.ox=0; cell.oy=0; cell.sc=1; cell.hue=0; cell.sat=1; syncScaleUI(cell); draw(); } } } });
+board.addEventListener('wheel',e=>{
+  if(tool==='recenter' && recenterSel){ const cell=cells.get(recenterSel.join(',')); if(cell){ e.preventDefault();
+    cell.sc=Math.max(0.4, Math.min(5, (cell.sc||1)*(e.deltaY<0?1.06:1/1.06))); syncScaleUI(cell); draw(); } return; }
+  if(layer==='lines'||(activeTile&&(activeTile.cat==='Rivers'||activeTile.cat==='Paths'))){ e.preventDefault(); rotBrush(e.deltaY>0?1:-1); }
+},{passive:false});
+function syncScaleUI(cell){
+  const v=Math.round((cell.sc||1)*100); $('cellScale').value=v; $('vCellScale').textContent=v+'%';
+  const h=Math.round(cell.hue||0); $('cellHue').value=h; $('vCellHue').textContent=h+'°';
+  const s=Math.round((cell.sat===undefined?1:cell.sat)*100); $('cellSat').value=s; $('vCellSat').textContent=s+'%';
+}
+function selCell(){ return recenterSel?cells.get(recenterSel.join(',')):null; }
+for(const id of ['cellScale','cellHue','cellSat']) $(id).addEventListener('pointerdown',()=>{ if(recenterSel) pushHistory(); });
+$('cellScale').addEventListener('input',e=>{ const cell=selCell(); if(!cell) return;
+  cell.sc=+e.target.value/100; $('vCellScale').textContent=e.target.value+'%'; draw(); });
+$('cellHue').addEventListener('input',e=>{ const cell=selCell(); if(!cell) return;
+  cell.hue=+e.target.value; $('vCellHue').textContent=e.target.value+'°'; draw(); });
+$('cellSat').addEventListener('input',e=>{ const cell=selCell(); if(!cell) return;
+  cell.sat=+e.target.value/100; $('vCellSat').textContent=e.target.value+'%'; draw(); });
+window.addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA|SELECT/.test((document.activeElement&&document.activeElement.tagName)||'');
+  if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')){ e.preventDefault(); if(history.length){ cells=history.pop(); draw(); } return; }
+  if(typing) return;
+  if(e.key==='r'||e.key==='R'){ rotBrush(e.shiftKey?-1:1); return; }
+  if(tool==='recenter'&&recenterSel&&e.key.startsWith('Arrow')){ e.preventDefault();
+    const cell=cells.get(recenterSel.join(',')); if(cell){ const s=e.shiftKey?5:1; pushHistory();
+      if(e.key==='ArrowUp')cell.oy=(cell.oy||0)-s; else if(e.key==='ArrowDown')cell.oy=(cell.oy||0)+s;
+      else if(e.key==='ArrowLeft')cell.ox=(cell.ox||0)-s; else if(e.key==='ArrowRight')cell.ox=(cell.ox||0)+s; draw(); } }
+});
+function rotBrush(d){ brushStep=((brushStep+d)%6+6)%6; $('vRot').textContent=(brushStep*60)+'°'; }
+function setLayer(l){ layer=l; document.querySelectorAll('.layer-btns button').forEach(x=>x.classList.toggle('active',x.dataset.layer===l)); }
+document.querySelectorAll('.layer-btns button').forEach(b=>b.onclick=()=>setLayer(b.dataset.layer));
+document.querySelectorAll('.tool-btns button[data-tool]').forEach(b=>b.onclick=()=>{ tool=b.dataset.tool; recenterSel=null;
+  document.querySelectorAll('.tool-btns button[data-tool]').forEach(x=>x.classList.toggle('active',x===b));
+  $('scaleCtrl').style.display=(tool==='recenter')?'block':'none'; draw(); });
+$('rotL').onclick=()=>rotBrush(-1); $('rotR').onclick=()=>rotBrush(1);
+$('cols').addEventListener('input',e=>{grid.cols=Math.max(1,+e.target.value||1); centreView(); draw();});
+$('rows').addEventListener('input',e=>{grid.rows=Math.max(1,+e.target.value||1); centreView(); draw();});
+$('hexSize').addEventListener('input',e=>{grid.hex=+e.target.value;$('vHex').textContent=grid.hex; centreView(); draw();});
+$('tileFill').addEventListener('input',e=>{tileFill=+e.target.value/100;$('vFill').textContent=e.target.value+'%';draw();});
+$('showGrid').addEventListener('change',e=>{showGrid=e.target.checked;draw();});
+$('clearWs').addEventListener('click',()=>{ if(confirm('Clear the workspace?')){ pushHistory(); cells.clear(); draw(); } });
+$('newStamp').addEventListener('click',()=>{ if(cells.size && !confirm('Start a new stamp? The workspace will be cleared.')) return;
+  pushHistory(); cells.clear(); $('stampName').value=''; draw(); });
+
+// ---- stamp format: tile NAMES + 60° rot steps, positions relative to the top-left placed hex ----
+function buildStamp(name){
+  if(!cells.size) return null;
+  let minC=1e9,minR=1e9;
+  for(const k of cells.keys()){ const i=k.indexOf(','), c=+k.slice(0,i), r=+k.slice(i+1); if(c<minC)minC=c; if(r<minR)minR=r; }
+  const o=hexCenter(minC,minR), out=[];
+  for(const [k,v] of cells){ const i=k.indexOf(','), c=+k.slice(0,i), r=+k.slice(i+1), ctr=hexCenter(c,r);
+    out.push({ dxu:(ctr.x-o.x)/hexW(), dyu:(ctr.y-o.y)/hexH(),
+      base:v.base?v.base.base:null, ox:v.ox||0, oy:v.oy||0, sc:v.sc||1, hue:v.hue||0, sat:(v.sat===undefined?1:v.sat),
+      lines:v.lines.map(x=>[x.t.base, Math.round((x.rot||0)/(Math.PI/3))%6]),
+      features:v.features.map(x=>[x.t.base, Math.round((x.rot||0)/(Math.PI/3))%6]) }); }
+  return { format:'falldin-stamp', version:1, name, tileFill, cells:out, thumb:makeThumb(out) };
+}
+function makeThumb(out){                      // low-res preview bake
+  const HW=48, HH=HW*(194/224), dw=HW*tileFill, dh=HH*tileFill;
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for(const c of out){ const sc=c.sc||1, x=c.dxu*HW, y=c.dyu*HH;
+    minx=Math.min(minx,x-dw*sc/2);maxx=Math.max(maxx,x+dw*sc/2);miny=Math.min(miny,y-dh*sc/2);maxy=Math.max(maxy,y+dh*sc/2); }
+  const cv=document.createElement('canvas'); cv.width=Math.max(12,Math.ceil(maxx-minx)+4); cv.height=Math.max(12,Math.ceil(maxy-miny)+4);
+  const cx=cv.getContext('2d');
+  const one=(nm,step,x,y,sc)=>{ const t=index[nm]; if(!t||!t.img) return; const w=dw*sc, h=dh*sc, rot=(step||0)*(Math.PI/3);
+    if(rot){cx.save();cx.translate(x,y);cx.rotate(rot);cx.drawImage(t.img,-w/2,-h/2,w,h);cx.restore();} else cx.drawImage(t.img,x-w/2,y-h/2,w,h); };
+  for(const c of [...out].sort((a,b)=>a.dyu-b.dyu)){ const sc=c.sc||1,
+    x=c.dxu*HW-minx+2+(c.ox||0)*(HW/hexW()), y=c.dyu*HH-miny+2+(c.oy||0)*(HH/hexH());
+    const fl=cellFilter(c); if(fl!=='none') cx.filter=fl;
+    if(c.base) one(c.base,0,x,y,sc); for(const l of c.lines) one(l[0],l[1],x,y,sc); for(const f of c.features) one(f[0],f[1],x,y,sc);
+    if(fl!=='none') cx.filter='none'; }
+  return cv.toDataURL('image/png');
+}
+function loadStampIntoWs(st){
+  pushHistory(); cells.clear();
+  // rebuild on the workspace grid: place the anchor a couple of hexes in so nothing sits at the edge
+  const aC=1, aR=1, o=hexCenter(aC,aR);
+  let maxC=aC, maxR=aR;
+  for(const c of st.cells){
+    const h=pixelToHexUnbounded(o.x+c.dxu*hexW(), o.y+c.dyu*hexH()); if(!h) continue;
+    maxC=Math.max(maxC,h[0]); maxR=Math.max(maxR,h[1]);
+  }
+  if(maxC+2>grid.cols){ grid.cols=maxC+2; $('cols').value=grid.cols; }
+  if(maxR+2>grid.rows){ grid.rows=maxR+2; $('rows').value=grid.rows; }
+  const o2=hexCenter(aC,aR);
+  for(const c of st.cells){
+    const h=pixelToHexUnbounded(o2.x+c.dxu*hexW(), o2.y+c.dyu*hexH()); if(!h) continue;
+    const cell={base:c.base?index[c.base]||null:null, ox:c.ox||0, oy:c.oy||0, sc:c.sc||1, hue:c.hue||0, sat:(c.sat===undefined?1:c.sat),
+      lines:(c.lines||[]).map(([n,s])=>{const t=index[n];return t?{t,rot:(s||0)*(Math.PI/3)}:null;}).filter(Boolean),
+      features:(c.features||[]).map(([n,s])=>{const t=index[n];return t?{t,rot:(s||0)*(Math.PI/3)}:null;}).filter(Boolean)};
+    cells.set(h.join(','),cell);
+  }
+  $('stampName').value=st.name||''; centreView(); draw();
+}
+function pixelToHexUnbounded(px,py){          // like pixelToHex but ignores grid bounds (used while re-laying a stamp)
+  const ac=Math.max(0,Math.floor(px/colStep())), ar=Math.max(0,Math.floor(py/rowStep()));
+  let best=null,bd=1e18;
+  for(let c=Math.max(0,ac-1);c<=ac+1;c++)for(let r=Math.max(0,ar-1);r<=ar+1;r++){
+    const ctr=hexCenter(c,r), d=(ctr.x-px)**2+(ctr.y-py)**2; if(d<bd){bd=d;best=[c,r];} }
+  return best;
+}
+
+// ---- library (localStorage) + file export/import ----
+function getLib(){ try{ return JSON.parse(localStorage.getItem(LS_LIB))||[]; }catch(e){ return []; } }
+function setLib(a){ try{ localStorage.setItem(LS_LIB,JSON.stringify(a)); }catch(e){ alert('Browser storage full — export to a file instead.'); } }
+function refreshLib(){
+  const wrap=$('libList'), lib=getLib(); wrap.innerHTML='';
+  if(!lib.length){ wrap.innerHTML='<div class="hintline" style="grid-column:1/3;">No stamps saved yet.</div>'; return; }
+  lib.forEach((st,i)=>{
+    const d=document.createElement('div'); d.className='lib-item'; d.title=st.name+' — '+st.cells.length+' hex · click to edit';
+    d.innerHTML='<img src="'+(st.thumb||'')+'"><div class="nm">'+st.name+'</div><span class="del">✕</span>';
+    d.querySelector('.del').onclick=ev=>{ ev.stopPropagation(); const l=getLib(); l.splice(i,1); setLib(l); refreshLib(); };
+    d.onclick=()=>{ if(!tiles.length){ alert('Load the tile folder first.'); return; } loadStampIntoWs(st); };
+    wrap.appendChild(d);
+  });
+}
+$('saveStamp').addEventListener('click',()=>{
+  if(!cells.size){ alert('Place some hexes first.'); return; }
+  const name=($('stampName').value||'').trim(); if(!name){ alert('Give the stamp a name.'); return; }
+  const st=buildStamp(name); if(!st) return;
+  const lib=getLib(); const at=lib.findIndex(x=>x.name===name);
+  if(at>=0){ if(!confirm('A stamp named “'+name+'” exists. Overwrite it?')) return; lib[at]=st; } else lib.push(st);
+  setLib(lib); refreshLib(); $('status').textContent='Saved “'+name+'” ('+st.cells.length+' hexes)';
+});
+$('exportOne').addEventListener('click',()=>{
+  if(!cells.size){ alert('Place some hexes first.'); return; }
+  const name=($('stampName').value||'stamp').trim();
+  const st=buildStamp(name); if(!st) return;
+  dl(JSON.stringify(st), name.replace(/[^\w\- ]/g,'')+'.stamp.json');
+});
+$('exportAll').addEventListener('click',()=>{
+  const lib=getLib(); if(!lib.length){ alert('Library is empty.'); return; }
+  dl(JSON.stringify({format:'falldin-stamp-pack',version:1,stamps:lib}), 'falldin-stamps.pack.json');
+});
+$('importFile').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader(); rd.onload=ev=>{ try{
+    const d=JSON.parse(ev.target.result), lib=getLib();
+    const add=(d.format==='falldin-stamp-pack')?(d.stamps||[]):(d.format==='falldin-stamp'?[d]:[]);
+    if(!add.length){ alert('Not a Falldin stamp file.'); return; }
+    for(const st of add){ const at=lib.findIndex(x=>x.name===st.name); if(at>=0) lib[at]=st; else lib.push(st); }
+    setLib(lib); refreshLib(); $('status').textContent='Imported '+add.length+' stamp(s)';
+  }catch(err){ alert('Could not read that file.'); } };
+  rd.readAsText(f); e.target.value='';
+});
+function dl(text,name){ const b=new Blob([text],{type:'application/json'}), u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); }
+
+// ---- boot ----
+function fitBoard(){ board.width=stage.clientWidth||800; board.height=stage.clientHeight||600; centreView(); draw(); }
+window.addEventListener('resize',fitBoard);
+if(window.ResizeObserver) new ResizeObserver(fitBoard).observe(stage);
+refreshLib(); fitBoard();
+</script>
