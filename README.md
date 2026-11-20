@@ -80,6 +80,91 @@ Draw rivers and roads as lines instead of placing pieces one by one.
 - Rivers and roads are separate, so a road can cross a river. **Ctrl + Z** undoes a whole stroke. **Esc** cancels the stroke you're drawing.
 - Which edges each tile connects is read from the tile images when you first use the brush, so it works with any DPI folder.
 
+### Wall & cliff assets: picking and loading
+Walls need textures; cliffs don't. Load your walls once and the browser remembers them.
+
+**1. Where wall textures come from**
+
+| Source | Where it is | What you get |
+|---|---|---|
+| Dungeondraft's built-in walls | `Dungeondraft.pck` in the Dungeondraft install folder (for example `C:\Program Files\Dungeondraft\`) | stone, stone_09, stone_12, concrete, cobble, battlements, wood 1–4. These are white line art, tinted with the colour picker. |
+| 2-Minute Tabletop Dungeondraft packs | the `.dungeondraft_pack` files from your 2MT downloads | Painted walls in the same hand-drawn style as the hex tiles. |
+| A `Walls and cliffs` folder | anywhere; keeping it inside the tile pack folder works well | The same walls as plain images, one subfolder per pack, plus any walls you make yourself. |
+
+**2. Which walls suit a hex map**
+- **City walls / fortifications**: *2MT Medieval Building Map Assets · Wall - Stone A/B - Convex*, *2MT Dungeon Wall and Floor Assets · Wall - Straight - Convex*, or Dungeondraft *battlements* / *stone_09* tinted a warm grey (try `#a39a86`).
+- **Low walls, dykes, border walls**: *2MT Medieval · Low*, *2MT Dungeon Wall and Floor · Low Wall - Straight - Flat*, Dungeondraft *concrete* or *stone*.
+- **Palisades and wooden forts**: *2MT Medieval · Wall - Wood A/B*, Dungeondraft *wood* … *wood_04* tinted brown.
+- **Ruins**: *2M Desert Map Assets · desertruins*.
+- Indoor pieces (interior walls, railings, sewer pathways, curbs) and modern ones (Scrap Town fences, barbed wire) also load, but rarely fit a world map.
+
+The **Convex** and **Concave** 2MT walls have a 3D side. If it faces the wrong way, use **Flip piece** or **Flip line** (see the brush modes below).
+
+**3. Loading them** (Wall Brush settings, Paint tab)
+- **Load Walls Folder** → pick the `Walls and cliffs` folder (or any folder of wall images). Every subfolder loads in one go.
+- **Load Walls** → pick `Dungeondraft.pck` and/or any `.dungeondraft_pack` files. Hold **Ctrl** to select several at once. Only the wall textures are read out of each pack, so even the large Dungeondraft file loads quickly.
+- The status line says how many wall styles loaded, and the **Wall brush** dropdown lists them grouped by pack.
+- They are remembered in this browser, so next time the dropdown is already filled. Load them again after switching browser or clearing the browser's site data.
+- Walls loaded from a pack and from a folder named like that pack get the same names, so maps drawn with either one find their walls.
+
+**4. Making a `Walls and cliffs` folder of your own**
+```
+Walls and cliffs\
+  Walls\
+    Dungeondraft\                          stone.png, stone_end.png, stone_09.png ...
+    2MT Medieval Building Map Assets\      Wall - Stone A - Convex_wall.webp, ..._wall_end.webp ...
+    My walls\                              hedge.png, hedge_end.png
+  Cliffs\                                  (skipped by the map tool)
+```
+- **Subfolder name = pack name** in the dropdown. Name it exactly like the pack (as the dropdown shows it) to keep the same wall names as loading the pack directly.
+- **Your own wall image**: a long horizontal strip on a transparent background (PNG or WebP). It must tile left to right without a visible seam, with the wall running along the middle. Empty rows above and below are trimmed automatically.
+- **End cap** (optional): an image named `<name>_end` with the same height, drawn as the *right-hand* end of the wall. It is mirrored for the left end.
+- **Load Tile Folder** always skips a folder called `Walls and cliffs`, so it can live inside the tile pack without its strips showing up as tiles.
+
+**5. Cliffs**
+Nothing to load. The rocky, grassy and snowy cliffs (and sandy, if the pack has a desert base) are built from the hex tiles each time you load the **tile folder**, so they match whichever DPI and pack you use. Without a tile folder they fall back to flat colours. Any images in a `Cliffs` subfolder are only copies for other programs; the map tool ignores them.
+
+**Troubleshooting**
+- *"No wall textures found"*: that file has no walls (many packs only hold objects or floors).
+- *Walls look like plain grey bands after opening a map*: that map uses a wall style this browser hasn't loaded. Load the pack or folder named in the message.
+- *The wall is too thin or thick*: city walls look right at about **6–10%** thickness, big fortifications at **12–20%**. Cliffs default to a height of **20%**.
+
+### Wall Brush
+Draw walls along the hex **edges** (city walls, border walls, palisades).
+1. Pick **Wall Brush** (Tool panel).
+2. Load wall textures (see *Wall & cliff assets* above). Any of these work:
+   - **`Dungeondraft.pck`** from your Dungeondraft install folder, for the built-in walls (stone, stone_09, concrete, battlements, wood...);
+   - any **`.dungeondraft_pack`**, for example the 2-Minute Tabletop *Medieval Building* or *Dungeon Wall and Floor* packs, whose walls match the hex tiles' hand-drawn style;
+   - plain wall images (`name.png`, with an optional `name_end.png` end cap);
+   - **Load Walls Folder**: a folder of such images, one subfolder per pack (for example a `Walls and cliffs` folder kept in the tile pack). Each wall is named after its subfolder, so a subfolder named like the pack gives the same wall names as loading the pack itself. **Load Tile Folder** skips any `Walls and cliffs` folder, so the wall strips never end up in the tile palette.
+
+   The textures are read straight from the pack and remembered in this browser, so each pack only needs loading once. Nothing is copied next to the tool.
+3. Choose a style, colour and thickness, then **drag** along the hex edges. Corners join up neatly, and loose ends get the wall's end cap.
+
+- **Click** an edge to add or remove a single wall. **Right-drag** (or tick *Wall brush erases instead*) removes walls.
+- **Colour**: white keeps a texture's own colours; any other colour tints it (the Dungeondraft built-in walls are white line art meant to be tinted). **Plain (colour only)** needs no textures.
+- Walls are saved in the map file, by style name. Open a map before its wall pack is loaded and its walls are drawn plain until you load it.
+- **Ctrl + Z** undoes a stroke, **Esc** cancels the stroke you're drawing. Walls show up in every export, HD render and cut piece.
+
+### Cliff Brush
+Draw cliffs and escarpments along hex edges, the same way as walls.
+- Styles: **rocky**, **grassy** and **snowy** (plus **sandy** if your tiles include a desert base). They are built from the loaded tile pack: the colours come from the *Base* tiles and the rock detail from *Mountains, medium (rocky)*, so they match whatever pack is loaded. No extra files are needed.
+- **Drag** along the edges. The ground drops on the **right** of the direction you drag; ticks on the stroke show the low side. Tick **Drop to the left of the stroke** to flip it. Tip: drag *anticlockwise* around a plateau to make it stand up.
+- **Click** an edge to add or remove one piece; the side you click on is the high side. **Right-drag** erases.
+- Each cliff casts a soft shadow onto the low ground, and loose ends taper off instead of stopping square. **Cliff height** sets how wide the rock face is.
+
+### Wall & cliff brush modes
+The **Draw · Flip piece · Flip line · Surround · Delete piece · Delete line** buttons (above the Wall brush settings) work with both the Wall Brush and the Cliff Brush.
+- **Draw**: drag and click as described above.
+- **Flip piece**: click a wall or cliff to turn that one piece the other way round. A cliff swaps its high and low side; a wall turns its 3D face (and end caps) to the other side. The piece under the cursor is highlighted in blue.
+- **Flip line**: the same, for every piece connected to the one you click (all connected walls, or all connected cliffs).
+- **Delete piece** / **Delete line**: click a wall or cliff to remove that one piece, or the whole line connected to it. What will go is highlighted in red first; **Ctrl + Z** brings it back.
+- **Surround**: click a hex and its whole connected area of that tile type (variants such as *Plains (lush) 1–5* count as one type) is ringed with the current wall or cliff. With the Cliff Brush the area becomes **raised**: high inside, dropping outward. Hover to see the ring before you click.
+  - **Shift + click** rings *every* area of that tile type on the map.
+  - Tick **Surround: the clicked area is the low ground** to make a basin or canyon floor instead.
+  - **Right-click** removes the ring around that area. No ring is drawn along the map's own edge.
+  - One **Ctrl + Z** undoes a whole surround or flip.
+
 ### Handy extras
 - **Native asset size** (Grid panel, on for new maps): towns, banners and other extras keep their true size next to the terrain instead of stretching across the hex, matching the Stamp Creator. Maps saved before v3.2 open with it off so they look the same as before.
 - **Alt + click** = eyedropper (copy a hex's terrain onto your brush).
@@ -142,7 +227,9 @@ Options: **Trim each piece to its hex outline** (on by default: neighbouring pie
 Build **pieces** (stamps) that cover one or more hexes, fit the hex grid exactly, and can be reused in any map.
 
 ### 1. Shape
-- **Shape** tool: click or drag hexes in and out of the piece. Painting a hex adds it to the piece too.
+- Every piece has a **middle hex**, shown as a gold ring. When you place the piece on the map, the middle sits under your cursor, and turning the piece (R) turns it around the middle. **Set Middle** moves it: click any hex.
+- **Size around the middle** grows the piece in rings around the middle: 1 = just the middle hex, 2 = up to 7 hexes, 3 = up to 19, and so on. Moving the slider rebuilds the shape around the middle. Hexes beyond the new size are dropped, and Ctrl+Z brings them back.
+- **Shape** tool: after picking a size, click or drag single hexes in and out of the piece. Painting a hex adds it to the piece too.
 - A piece hex can be left empty: it still counts as part of the piece's shape.
 
 ### 2. Fill
@@ -197,6 +284,8 @@ Stamps store **tile names**, not pixels — so a placed stamp becomes ordinary m
 | Eyedropper | **Alt** + click |
 | Rotate river/path | **R** (Shift+R reverse) · scroll · click a placed river |
 | Draw / erase a river or road | River/Road Brush: drag · right-drag · Shift on release = lake end |
+| Draw / erase a wall | Wall Brush: drag along edges · click an edge · right-drag |
+| Draw / erase a cliff | Cliff Brush: drag (drops to the right) · click the high side of an edge · right-drag |
 | Turn / mirror a piece while placing | **R** (Shift+R reverse) · **M** |
 | Undo | **Ctrl + Z** |
 | Pan | Pan tool · middle-drag · **Space** + drag · scroll |

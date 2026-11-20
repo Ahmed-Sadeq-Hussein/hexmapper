@@ -129,6 +129,8 @@ kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;
       <div class="tool-btns">
         <button data-tool="paint" class="active">Paint</button>
         <button data-tool="linebrush">River/Road Brush</button>
+        <button data-tool="wallbrush">Wall Brush</button>
+        <button data-tool="cliffbrush">Cliff Brush</button>
         <button data-tool="erase">Erase</button>
         <button data-tool="fill">Fill Area</button>
         <button data-tool="stamp">Stamp</button>
@@ -145,6 +147,32 @@ kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;
         <select id="lineFam"><option value="">load the tile folder first</option></select>
         <label class="toggle-row" style="margin-top:0.3rem;"><input type="checkbox" id="lineErase">Brush erases instead</label>
         <p class="hintline"><b>River/Road Brush</b>: drag across hexes and the matching river or road pieces are picked and turned for you. Drawing into an existing river makes a junction. Right-drag erases. Hold <kbd>Shift</kbd> when you let go to end a river in a lake instead of a spring; ending next to water makes a river mouth.</p>
+      </div>
+      <div class="ctrl" style="margin-top:0.6rem;">
+        <label>Wall &amp; cliff brush mode</label>
+        <div class="tool-btns" id="edgeModes"><button data-emode="draw" class="active">Draw</button><button data-emode="flip1">Flip piece</button><button data-emode="flipline">Flip line</button><button data-emode="surround">Surround</button><button data-emode="del1">Delete piece</button><button data-emode="delline">Delete line</button></div>
+        <label class="toggle-row" style="margin-top:0.3rem;"><input type="checkbox" id="surroundLow">Surround: the clicked area is the low ground</label>
+        <p class="hintline"><b>Flip piece</b> / <b>Flip line</b>: click a wall or cliff to turn it the other way round (a cliff swaps its high and low side; <i>line</i> = every piece connected to it). <b>Delete piece</b> / <b>Delete line</b>: click one to remove it, or the whole connected line. <b>Surround</b>: click a hex to ring its connected area of that tile type with the current wall or cliff, high on the inside. <kbd>Shift</kbd>+click rings every area of that type; right-click removes the ring.</p>
+      </div>
+      <div class="ctrl" style="margin-top:0.6rem;">
+        <label>Wall brush <span class="val" id="vWallN"></span></label>
+        <select id="wallStyle"><option>Plain (colour only)</option></select>
+        <label class="filebtn" for="wallFiles" style="display:block;text-align:center;white-space:normal;margin-top:0.3rem;">Load Walls (Dungeondraft.pck / .dungeondraft_pack / PNG)</label>
+        <input type="file" id="wallFiles" multiple accept=".pck,.dungeondraft_pack,.png,.webp,.jpg,.jpeg">
+        <label class="filebtn" for="wallFolder" style="display:block;text-align:center;white-space:normal;margin-top:0.3rem;">Load Walls Folder (e.g. "Walls and cliffs")</label>
+        <input type="file" id="wallFolder" webkitdirectory directory multiple>
+        <label style="margin-top:0.35rem;display:flex;align-items:center;gap:0.4rem;">Wall colour <input type="color" id="wallColor" value="#9a8f7c" style="width:2.4rem;height:1.3rem;padding:0;border:1px solid var(--border);background:none;"></label>
+        <label>Wall thickness <span class="val" id="vWallThick">9%</span></label><input type="range" id="wallThick" min="2" max="30" step="0.5" value="9">
+        <label class="toggle-row" style="margin-top:0.3rem;"><input type="checkbox" id="wallErase">Wall brush erases instead</label>
+        <p class="hintline"><b>Wall Brush</b>: drag along the hex edges to build a wall; corners join up by themselves. Click an edge to add or remove a single wall. Right-drag erases. Load <b>Dungeondraft.pck</b> (in the Dungeondraft install folder) or any <b>.dungeondraft_pack</b> for textures; they are remembered in this browser. White keeps a texture's own colours; any other colour tints it.</p>
+      </div>
+      <div class="ctrl" style="margin-top:0.6rem;">
+        <label>Cliff brush</label>
+        <select id="cliffStyle"></select>
+        <label>Cliff height <span class="val" id="vCliffThick">20%</span></label><input type="range" id="cliffThick" min="6" max="35" step="0.5" value="20">
+        <label class="toggle-row" style="margin-top:0.3rem;"><input type="checkbox" id="cliffLeft">Drop to the left of the stroke</label>
+        <label class="toggle-row"><input type="checkbox" id="cliffErase">Cliff brush erases instead</label>
+        <p class="hintline"><b>Cliff Brush</b>: drag along the hex edges; the ground drops on the <b>right</b> of the way you drag (ticks show the low side). Click an edge to add or remove one piece: the side you click is the high side. Right-drag erases. The cliff colours come from the loaded tiles.</p>
       </div>
       <div style="margin-top:0.6rem;">
         <label class="toggle-row"><input type="checkbox" id="riverConnect" checked>Auto-connect rivers/paths</label>
@@ -385,7 +413,7 @@ const DPI_PREF=[72,150,300];                      // editing prefers the small/f
 function dpiOf(p){ const m=p.match(/(\d{2,3})\s*DPI/i); return m?+m[1]:0; }
 function dpiRank(d){ const i=DPI_PREF.indexOf(d); return i<0?99:i; }
 $('tileFolder').addEventListener('change',e=>{
-  const files=[...e.target.files].filter(f=>/\.(png|webp)$/i.test(f.name));
+  const files=[...e.target.files].filter(f=>/\.(png|webp)$/i.test(f.name)&&!/(^|\/)Walls and cliffs\//i.test(f.webkitRelativePath||''));   // wall strips are not tiles
   if(!files.length){ alert('No tile images (.png/.webp) found in that folder.'); return; }
   const best=new Map(); let dropped=0;
   for(const f of files){
@@ -404,7 +432,7 @@ $('tileFolder').addEventListener('change',e=>{
              hex:/^Hex\s*-/i.test(base)&&!/Extras/i.test(rec.path)};
     tiles.push(t); index[base]=t; (cats[t.cat]=cats[t.cat]||[]).push(t);
   }
-  mergeArt(); prepCache=new WeakMap(); buildCatTabs(); refreshLineFamilies(); primeReference();
+  mergeArt(); prepCache=new WeakMap(); buildCatTabs(); refreshLineFamilies(); primeReference(); buildCliffStyles().catch(e=>console.warn('cliffs',e));
   const first=Object.keys(cats)[0]; selectCat(first);
   $('palEmpty')&&($('palEmpty').style.display='none');
   const nx=tiles.filter(t=>/^Extras/.test(t.cat)).length;
@@ -524,13 +552,41 @@ function drawObjAt(cx,im,t,o,cell,x,y,u){
   cx.restore();
 }
 // list = [{cell, x, y}] (hex centres on the target canvas), u = hex width in canvas px.
-// Three passes — all terrain, then all rivers/paths, then all features — so a town is never
-// covered by the terrain of the hex below it.
+// Like tiles laid on a table, back to front, in three passes:
+//  1. terrain: a hex nearer the bottom covers the side of the hex above it;
+//  2. rivers/paths, each kept inside its own hex, so they run over a raised edge that the tile below
+//     pokes up into this hex (and never spill onto neighbours);
+//  3. features: kept off the terrain of the hexes below (S, SE, SW), so a city's wall does not hang over
+//     the hex beneath it, while towers poking UP still show over the hexes behind.
+// Your own images (art) are exempt from the clipping: a piece's art may span several hexes on purpose.
 function drawCellsLayered(cx,list,u,imgFor){
   list.sort((a,b)=>(a.y-b.y)||(a.x-b.x));
+  if(!list.length) return;
+  const H=u*HEXAR, x0=list[0].x, y0=list[0].y;
+  const gi=(x,y)=>Math.round((x-x0)/(0.75*u))+','+Math.round((y-y0)/(H/2));     // grid slot from position
+  const solid=new Set(); for(const it of list) if(it.cell.base) solid.add(gi(it.x,it.y));
+  const hexP=(x,y,g)=>{ const w=u/2+g, h=H/2+g; cx.moveTo(x+w,y); cx.lineTo(x+w/2,y-h); cx.lineTo(x-w/2,y-h); cx.lineTo(x-w,y); cx.lineTo(x-w/2,y+h); cx.lineTo(x+w/2,y+h); cx.closePath(); };
   for(const {cell,x,y} of list){ if(cell.base){ const im=imgFor(cell.base); if(im) drawObjAt(cx,im,cell.base,cell.bt||NO_TR,cell,x,y,u); } }
-  for(const {cell,x,y} of list) for(const o of cell.lines){ const im=imgFor(o.t); if(im) drawObjAt(cx,im,o.t,o,cell,x,y,u); }
-  for(const {cell,x,y} of list) for(const o of cell.features){ const im=imgFor(o.t); if(im) drawObjAt(cx,im,o.t,o,cell,x,y,u); }
+  for(const {cell,x,y} of list){
+    if(!cell.lines.length) continue;
+    let clipped=false;
+    for(const o of cell.lines){ const im=imgFor(o.t); if(!im) continue;
+      if(o.t.art){ if(clipped){ cx.restore(); clipped=false; } drawObjAt(cx,im,o.t,o,cell,x,y,u); continue; }
+      if(!clipped){ cx.save(); cx.beginPath(); hexP(x,y,1); cx.clip(); clipped=true; }
+      drawObjAt(cx,im,o.t,o,cell,x,y,u); }
+    if(clipped) cx.restore();
+  }
+  const BIG=1e7;
+  for(const {cell,x,y} of list){
+    if(!cell.features.length) continue;
+    const below=[[x,y+H],[x+0.75*u,y+H/2],[x-0.75*u,y+H/2]].filter(([bx,by])=>solid.has(gi(bx,by)));
+    let clipped=false;
+    for(const o of cell.features){ const im=imgFor(o.t); if(!im) continue;
+      if(o.t.art||!below.length){ if(clipped){ cx.restore(); clipped=false; } drawObjAt(cx,im,o.t,o,cell,x,y,u); continue; }
+      if(!clipped){ cx.save(); cx.beginPath(); cx.rect(-BIG,-BIG,2*BIG,2*BIG); for(const [bx,by] of below) hexP(bx,by,-0.5); cx.clip('evenodd'); clipped=true; }
+      drawObjAt(cx,im,o.t,o,cell,x,y,u); }
+    if(clipped) cx.restore();
+  }
 }
 const imgOnScreen=t=>{ if(t.img) return t.img; ensureImg(t,()=>{ draw(); }); return null; };
 
@@ -546,9 +602,10 @@ function snapshot(){ const m=new Map(); for(const [k,v] of cells) m.set(k,cloneC
 function beginOp(){ undoDiff=new Map(); }
 function touch(key){ if(undoDiff && !undoDiff.has(key)) undoDiff.set(key, cloneCell(cells.get(key))); markDirty(); }
 function commitOp(){ if(undoDiff){ if(undoDiff.size){ history.push(undoDiff); if(history.length>80) history.shift(); } undoDiff=null; } }
-function pushFull(){ history.push({full:snapshot()}); if(history.length>80) history.shift(); markDirty(); }   // whole-map replace ops
+function pushFull(){ history.push({full:snapshot(), wallsFull:new Map(walls)}); if(history.length>80) history.shift(); markDirty(); }   // whole-map replace ops
 function undoLast(){ if(!history.length) return; const h=history.pop();
-  if(h && h.full){ cells=h.full; }
+  if(h && h.full){ cells=h.full; if(h.wallsFull) walls=h.wallsFull; }
+  else if(h && h.walls){ for(const [k,prev] of h.walls){ if(prev===null) walls.delete(k); else walls.set(k,prev); } }
   else if(h instanceof Map){ for(const [k,prev] of h){ if(prev===null) cells.delete(k); else cells.set(k,prev); } }
   markDirty(); draw(); }
 
@@ -723,6 +780,352 @@ function drawLineStroke(){
   ctx.fillStyle=ctx.strokeStyle; for(const q of p){ ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(3,hexW()*0.09),0,7); ctx.fill(); }
   ctx.restore();
 }
+// ---- Wall Brush: walls along hex EDGES, drawn with Dungeondraft wall textures ----
+// A wall sits on a hex edge, not in a hex. Each edge is stored once, on the hex that owns it:
+// the N, NE and SE edges of hex c,r are "c,r,0" / "c,r,1" / "c,r,2" (its S, SW and NW edges are owned by
+// the hexes below / to the left). Geometry below is in HEX UNITS (x in hex widths, y in hex heights), so
+// walls survive zoom and come out right in HD renders. Hex corners ("vertices") are kept as integers
+// X = x*4, Y = y*2. Textures are read from Dungeondraft.pck or any .dungeondraft_pack the user loads.
+let walls=new Map();                                       // "c,r,i" -> {s:style, c:'#rrggbb', w:thickness in hex widths}
+const wallStyles=new Map();                                // name -> {name, pack, img(canvas), end(canvas|null), color}
+const WALL_PLAIN='Plain (colour only)';
+const WALL_EDGE=[[[-0.25,-0.5],[0.25,-0.5]],[[0.25,-0.5],[0.5,0]],[[0.5,0],[0.25,0.5]]];   // N, NE, SE edge corners
+const WALL_MID=[[0,-0.5],[0.375,-0.25],[0.375,0.25]];
+const hexCtrU=(c,r)=>[c*0.75+0.5, r+0.5+((c&1)?0.5:0)];
+function vValid(X,Y){ const m=((X%3)+3)%3; if(m===2) return false; const k=m===0?X/3:(X-1)/3;
+  return (((Y%2)+2)%2)===(m===0?((1+(k&1))&1):(k&1)); }
+function vNeighbors(X,Y){ return (((X%3)+3)%3)===1?[[X-1,Y-1],[X-1,Y+1],[X+2,Y]]:[[X+1,Y-1],[X+1,Y+1],[X-2,Y]]; }
+function nearestVertex(xu,yu){ const X0=Math.floor(xu*4), Y0=Math.floor(yu*2); let best=null,bd=1e9;
+  for(let X=X0-2;X<=X0+3;X++) for(let Y=Y0-1;Y<=Y0+2;Y++){ if(!vValid(X,Y)) continue;
+    const dx=X/4-xu, dy=(Y/2-yu)*HEXAR, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=[X,Y]; } }
+  return best; }
+function wallEdgeKey(A,B){                                  // the edge between two neighbouring corners, or null
+  if(!vNeighbors(...A).some(v=>v[0]===B[0]&&v[1]===B[1])) return null;
+  const mx=(A[0]+B[0])/8, my=(A[1]+B[1])/4;
+  for(let i=0;i<3;i++){ const cx=mx-WALL_MID[i][0], cy=my-WALL_MID[i][1], cf=(cx-0.5)/0.75, c=Math.round(cf);
+    if(Math.abs(cf-c)>1e-6) continue; const rf=cy-0.5-((c&1)?0.5:0), r=Math.round(rf); if(Math.abs(rf-r)>1e-6) continue;
+    return c+','+r+','+i; }
+  return null; }
+function wallEdgeVerts(c,r,i){ const [x,y]=hexCtrU(c,r); return WALL_EDGE[i].map(([dx,dy])=>[Math.round((x+dx)*4),Math.round((y+dy)*2)]); }
+function wallOnMap(c,r,i){ if(inMap(c,r)) return true; const n=neighbor(c,r,D6[i]); return !!n&&inMap(...n); }
+function vPath(a,b){                                       // corner-to-corner walk along hex edges (greedy; always converges)
+  const out=[]; let cur=a;
+  for(let n=0;n<400&&(cur[0]!==b[0]||cur[1]!==b[1]);n++){ let best=null,bd=1e9;
+    for(const v of vNeighbors(...cur)){ const dx=(v[0]-b[0])/4, dy=(v[1]-b[1])/2*HEXAR, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } }
+    cur=best; out.push(cur); }
+  return out; }
+// which walls belong to a crop / cut piece / HD region: those touching at least one kept hex
+function wallFilter(bounds,keep){
+  if(!bounds&&!keep) return null;
+  const ok=(c,r)=>(!bounds||(c>=bounds.minC&&c<=bounds.maxC&&r>=bounds.minR&&r<=bounds.maxR))&&(!keep||keep(c,r));
+  return (c,r,i)=>{ if(ok(c,r)) return true; const n=neighbor(c,r,D6[i]); return !!n&&ok(...n); }; }
+
+// ---- wall textures ----
+function wallBand(src,rows){                               // crop to the rows that actually hold the wall
+  const c=document.createElement('canvas'); c.width=src.width; c.height=src.height; const x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(src,0,0);
+  if(!rows){ const d=x.getImageData(0,0,c.width,c.height).data; let y0=-1,y1=-1;
+    for(let y=0;y<c.height;y++){ let any=false; for(let X=0;X<c.width;X+=2) if(d[(y*c.width+X)*4+3]>24){ any=true; break; } if(any){ if(y0<0) y0=y; y1=y; } }
+    rows=y0<0?[0,c.height-1]:[y0,y1]; }
+  const h=rows[1]-rows[0]+1, o=document.createElement('canvas'); o.width=c.width; o.height=h; o.getContext('2d').drawImage(c,0,rows[0],c.width,h,0,0,c.width,h);
+  return {canvas:o, rows}; }
+async function registerWallStyle(rec){                     // rec = {name, pack, wall:Blob, end:Blob|null, color}
+  const bm=await createImageBitmap(rec.wall), b=wallBand(bm);
+  let end=null; if(rec.end){ try{ const eb=await createImageBitmap(rec.end); end=wallBand(eb, eb.height===bm.height?b.rows:null).canvas; }catch(e){} }
+  wallStyles.set(rec.name,{name:rec.name, pack:rec.pack, img:b.canvas, end, color:rec.color||'#ffffff', tinted:new Map(), endTint:new Map()}); }
+function tintCanvas(img,cache,color){
+  const col=(color||'#ffffff').toLowerCase(); if(col==='#ffffff') return img;
+  if(cache.has(col)) return cache.get(col);
+  const c=document.createElement('canvas'); c.width=img.width; c.height=img.height; const x=c.getContext('2d');
+  x.drawImage(img,0,0); x.globalCompositeOperation='multiply'; x.fillStyle=col; x.fillRect(0,0,c.width,c.height);
+  x.globalCompositeOperation='destination-in'; x.drawImage(img,0,0); cache.set(col,c); return c; }
+// Godot .pck reader (Dungeondraft.pck and .dungeondraft_pack files are both Godot packs). Reads only the
+// index and the few files it needs, so even the 400 MB Dungeondraft.pck loads in a moment.
+async function readPck(file){
+  let len=Math.min(file.size,1<<20);
+  for(;;){ const buf=await file.slice(0,len).arrayBuffer(), dv=new DataView(buf), u8=new Uint8Array(buf); let o=0;
+    const need=n=>{ if(o+n>buf.byteLength) throw 'more'; };
+    try{
+      need(24); if(dv.getUint32(0,true)!==0x43504447) throw new Error(file.name+' is not a Godot / Dungeondraft pack');
+      const ver=dv.getUint32(4,true); o=20; let base=0;
+      if(ver>=2){ need(12); base=dv.getUint32(o+4,true)+dv.getUint32(o+8,true)*4294967296; o+=12; }
+      o+=64; need(4); const n=dv.getUint32(o,true); o+=4; const files=new Map(), td=new TextDecoder();
+      for(let i=0;i<n;i++){ need(4); const l=dv.getUint32(o,true); o+=4; need(l+32+(ver>=2?4:0));
+        const p=td.decode(u8.subarray(o,o+l)).replace(/\0+$/,''); o+=l;
+        const off=dv.getUint32(o,true)+dv.getUint32(o+4,true)*4294967296, size=dv.getUint32(o+8,true)+dv.getUint32(o+12,true)*4294967296; o+=32; if(ver>=2) o+=4;
+        files.set(p,{off:off+base,size}); }
+      const read=p=>{ const e=files.get(p); return e?file.slice(e.off,e.off+e.size).arrayBuffer():Promise.resolve(null); };
+      return {files, read};
+    }catch(e){ if(e==='more'&&len<file.size){ len=Math.min(file.size,len*4); continue; } if(e==='more') throw new Error(file.name+': damaged pack index'); throw e; } } }
+function imageBlobFrom(buf){                               // raw png/webp, or the image inside a Godot 3 .stex
+  const u=new Uint8Array(buf), find=sig=>{ outer: for(let i=0;i<Math.min(u.length-sig.length,4096);i++){ for(let j=0;j<sig.length;j++) if(u[i+j]!==sig[j]) continue outer; return i; } return -1; };
+  const png=find([0x89,0x50,0x4E,0x47]); if(png>=0) return new Blob([u.subarray(png)],{type:'image/png'});
+  const riff=find([0x52,0x49,0x46,0x46]); if(riff>=0) return new Blob([u.subarray(riff)],{type:'image/webp'});
+  const jpg=find([0xFF,0xD8,0xFF]); if(jpg>=0) return new Blob([u.subarray(jpg)],{type:'image/jpeg'});
+  return null; }
+async function loadWallPack(file){
+  const pk=await readPck(file), td=new TextDecoder(); let pack=file.name.replace(/\.(pck|dungeondraft_pack)$/i,'');
+  for(const p of pk.files.keys()) if(/^res:\/\/packs\/[^/]+\/pack\.json$/.test(p)){ try{ pack=JSON.parse(td.decode(await pk.read(p))).name||pack; }catch(e){} }
+  const colors=new Map();                                  // data/walls/*.dungeondraft_wall -> default tint
+  for(const p of pk.files.keys()) if(/\/data\/walls\/[^/]+\.dungeondraft_wall$/i.test(p)){
+    try{ const j=JSON.parse(td.decode(await pk.read(p))); if(j.path&&j.color) colors.set(j.path.replace(/^.*\//,'').replace(/\.[a-z]+$/i,''), '#'+String(j.color).replace(/^#/,'').slice(-6)); }catch(e){} }
+  const tex=new Map();                                     // basename -> path (raw image, or Godot .import)
+  for(const p of pk.files.keys()){ const m=p.match(/\/textures\/walls\/([^/]+?)\.(png|webp|jpe?g)(\.import)?$/i); if(!m) continue;
+    if(!tex.has(m[1])||!m[3]) tex.set(m[1],p); }
+  const getBlob=async p=>{ let buf=await pk.read(p); if(!buf) return null;
+    if(/\.import$/.test(p)){ const m=td.decode(buf).match(/path(?:\.[a-z0-9]+)?="(res:\/\/\.import\/[^"]+)"/); if(!m) return null; buf=await pk.read(m[1]); if(!buf) return null; }
+    return imageBlobFrom(buf); };
+  let n=0;
+  for(const [b,p] of tex){ if(/_end$/i.test(b)) continue;
+    const wall=await getBlob(p); if(!wall) continue;
+    const endP=tex.get(b+'_end')||tex.get(b.replace(/_wall$/i,'')+'_wall_end'); const end=endP?await getBlob(endP):null;
+    const rec={name:pack+' · '+b.replace(/_wall$/i,''), pack, wall, end, color:colors.get(b)||'#ffffff'};
+    try{ await registerWallStyle(rec); wallDbPut(rec); n++; }catch(e){ console.warn('wall texture',b,e); } }
+  return n; }
+async function loadWallImages(files){                      // loose wall images: name.png (+ name_end.png)
+  // From a folder, each image is named after the folder it sits in ("Walls and cliffs/Walls/Dungeondraft/stone.png"
+  // -> "Dungeondraft · stone"), so the styles match the ones loaded straight from the packs and saved maps still find
+  // them. A "Cliffs" folder is skipped: the Cliff Brush makes its own cliffs from the loaded tiles.
+  const dirOf=f=>{ const parts=(f.webkitRelativePath||'').split('/'); return parts.length>2?parts[parts.length-2]:'Images'; };
+  files=files.filter(f=>!/^Cliffs?$/i.test(dirOf(f)));
+  const by=new Map(files.map(f=>[dirOf(f)+'|'+f.name.replace(/\.[a-z]+$/i,''),f])); let n=0;
+  for(const [key,f] of by){ const [pack,b]=key.split('|'); if(/_end$/i.test(b)) continue;
+    const rec={name:pack+' · '+b.replace(/_wall$/i,''), pack, wall:f, end:by.get(key+'_end')||null, color:'#ffffff'};
+    try{ await registerWallStyle(rec); wallDbPut(rec); n++; }catch(e){} }
+  return n; }
+// loaded wall textures are kept in the browser (IndexedDB), so each pack only has to be loaded once
+let wallDbP=null;
+function wallDb(){ if(!wallDbP) wallDbP=new Promise((res,rej)=>{ const q=indexedDB.open('falldin-walls',1);
+  q.onupgradeneeded=()=>q.result.createObjectStore('styles',{keyPath:'name'}); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); return wallDbP; }
+function wallDbPut(rec){ wallDb().then(db=>db.transaction('styles','readwrite').objectStore('styles').put(rec)).catch(()=>{}); }
+async function wallDbLoadAll(){ try{ const db=await wallDb(); const all=await new Promise((res,rej)=>{ const q=db.transaction('styles').objectStore('styles').getAll(); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); });
+  for(const r of all){ try{ await registerWallStyle(r); }catch(e){} } }catch(e){} refreshWallStyles(); draw(); }
+function refreshWallStyles(){
+  const sel=$('wallStyle'); if(!sel) return; const cur=sel.value; sel.innerHTML='';
+  const add=(parent,name,label)=>{ const o=document.createElement('option'); o.value=name; o.textContent=label; parent.appendChild(o); };
+  add(sel,WALL_PLAIN,WALL_PLAIN);
+  const packs=new Map(); for(const st of wallStyles.values()){ if(st.cliff) continue; if(!packs.has(st.pack)) packs.set(st.pack,[]); packs.get(st.pack).push(st); }
+  for(const [p,list] of [...packs].sort((a,b)=>a[0].localeCompare(b[0]))){ const g=document.createElement('optgroup'); g.label=p;
+    list.sort((a,b)=>a.name.localeCompare(b.name)).forEach(st=>add(g,st.name,st.name.slice(p.length+3))); sel.appendChild(g); }
+  sel.value=(cur&&(cur===WALL_PLAIN||wallStyles.has(cur)))?cur:WALL_PLAIN;
+  const nw=[...wallStyles.values()].filter(s=>!s.cliff).length, v=$('vWallN'); if(v) v.textContent=nw?(nw+' wall styles loaded'):'No wall textures loaded yet';
+  const cs=$('cliffStyle'); if(cs){ const cc=cs.value; cs.innerHTML=''; for(const st of wallStyles.values()) if(st.cliff) add(cs,st.name,st.name.replace(/^Cliffs · /,''));
+    cs.value=[...cs.options].some(o=>o.value===cc)?cc:(cs.options[0]?cs.options[0].value:''); } }
+
+// ---- drawing ----
+// P(xu,yu) -> canvas px; u = hex width in canvas px; filter(c,r,i) limits which walls are drawn; plain = no textures
+function drawWalls(cx,P,u,filter,plain){
+  if(!walls.size) return;
+  const CW=cx.canvas.width, CH=cx.canvas.height, segs=[], pats=new Map();
+  const at=([X,Y])=>P(X/4,Y/2);
+  const nrm=v=>{ const l=Math.hypot(v[0],v[1])||1; return [v[0]/l,v[1]/l]; }, crs=(p,q)=>p[0]*q[1]-p[1]*q[0], dot=(p,q)=>p[0]*q[0]+p[1]*q[1];
+  const away=(V,skip)=>{ const out=[], pv=at(V); for(const N of vNeighbors(...V)){ if(N[0]===skip[0]&&N[1]===skip[1]) continue; const k=wallEdgeKey(V,N);
+      if(k&&walls.has(k)){ const pn=at(N); out.push(nrm([pn[0]-pv[0],pn[1]-pv[1]])); } } return out; };
+  // mitre: where this wall meets another at a corner, cut its side along the bisector so the two fit together
+  const cut=(V,d,side,nb)=>{ const e=nb.find(e=>dot(e,side)>0)||(nb.length===1?nb[0]:null); if(!e) return [V[0]+side[0],V[1]+side[1]];
+    const b=nrm([d[0]+e[0],d[1]+e[1]]), lam=-crs(side,b)/crs(d,b); return [V[0]+side[0]+d[0]*lam, V[1]+side[1]+d[1]*lam]; };
+  for(const [k,v] of walls){ const [c,r,i]=k.split(',').map(Number); if(filter&&!filter(c,r,i)) continue;
+    const [A,B]=wallEdgeVerts(c,r,i), pa=at(A), pb=at(B), t=Math.max(1,v.w*u), m=t*2;
+    if(Math.max(pa[0],pb[0])<-m||Math.min(pa[0],pb[0])>CW+m||Math.max(pa[1],pb[1])<-m||Math.min(pa[1],pb[1])>CH+m) continue;
+    const d=nrm([pb[0]-pa[0],pb[1]-pa[1]]), n=[-d[1],d[0]], h=t/2, L=[n[0]*h,n[1]*h], R=[-n[0]*h,-n[1]*h], nd=[-d[0],-d[1]];
+    const na=away(A,B), nb=away(B,A), st=wallStyles.get(v.s), taper=!!(st&&st.cliff&&!plain), tp=Math.min(t*0.9,Math.hypot(pb[0]-pa[0],pb[1]-pa[1])*0.45);
+    const quad=[];                                           // cliffs taper to a point at loose ends instead of stopping square
+    if(taper&&!na.length) quad.push([pa[0]+L[0]+d[0]*tp,pa[1]+L[1]+d[1]*tp]); else quad.push(cut(pa,d,L,na));
+    if(taper&&!nb.length) quad.push([pb[0]+L[0]-d[0]*tp,pb[1]+L[1]-d[1]*tp], pb, [pb[0]+R[0]-d[0]*tp,pb[1]+R[1]-d[1]*tp]); else quad.push(cut(pb,nd,L,nb), cut(pb,nd,R,nb));
+    if(taper&&!na.length) quad.push([pa[0]+R[0]+d[0]*tp,pa[1]+R[1]+d[1]*tp], pa); else quad.push(cut(pa,d,R,na));
+    const drop=v.f?[-n[0],-n[1]]:n;
+    segs.push({v,t,pa,pb,d,quad,cliff:!!(st&&st.cliff), drop, freeA:!na.length, freeB:!nb.length,
+      phase:(A[0]/4*u)*d[0]+(A[1]/2*u*HEXAR)*d[1]}); }          // texture phase from map position: straight runs stay seamless
+  if(!segs.length) return;
+  cx.save(); cx.fillStyle='rgba(20,14,8,0.28)';                                      // soft drop shadow
+  for(const s of segs) for(const f of (s.cliff?[0.22,0.42]:[1])){ const ox=s.cliff?s.drop[0]*s.t*f:s.t*0.12, oy=s.cliff?s.drop[1]*s.t*f+s.t*0.06:s.t*0.2;   // cliffs throw a soft shadow onto the low ground
+    cx.globalAlpha=s.cliff?0.55:1; cx.beginPath(); cx.moveTo(s.quad[0][0]+ox,s.quad[0][1]+oy); for(let j=1;j<s.quad.length;j++) cx.lineTo(s.quad[j][0]+ox,s.quad[j][1]+oy); cx.closePath(); cx.fill(); }
+  cx.globalAlpha=1;
+  cx.restore();
+  for(const s of segs){ const st=wallStyles.get(s.v.s), tex=(plain||!st)?null:tintCanvas(st.img,st.tinted,s.v.c);
+    if(!tex){ cx.save(); cx.beginPath(); cx.moveTo(...s.quad[0]); for(let j=1;j<s.quad.length;j++) cx.lineTo(...s.quad[j]); cx.closePath();
+      cx.fillStyle=s.v.c||'#8a8070'; cx.fill(); cx.lineWidth=Math.max(0.75,s.t*0.12); cx.strokeStyle='rgba(28,22,16,0.9)'; cx.lineJoin='round'; cx.stroke(); cx.restore(); continue; }
+    let pat=pats.get(tex); if(!pat){ pat=cx.createPattern(tex,'repeat'); pats.set(tex,pat); }
+    const k=s.t/tex.height, tw=tex.width*k, ph=((s.phase%tw)+tw)%tw;
+    const loc=q=>{ const x=q[0]-s.pa[0], y=q[1]-s.pa[1]; return [x*s.d[0]+y*s.d[1], -x*s.d[1]+y*s.d[0]]; };
+    cx.save(); cx.translate(...s.pa); cx.rotate(Math.atan2(s.d[1],s.d[0]));
+    cx.beginPath(); cx.moveTo(...loc(s.quad[0])); for(let j=1;j<s.quad.length;j++) cx.lineTo(...loc(s.quad[j])); cx.closePath();
+    pat.setTransform(s.v.f?new DOMMatrix().translate(-ph,s.t/2).scale(k,-k):new DOMMatrix().translate(-ph,-s.t/2).scale(k)); cx.fillStyle=pat; cx.fill(); cx.restore(); }
+  for(const s of segs){ const st=wallStyles.get(s.v.s); if(plain||!st||!st.end) continue;   // end caps on loose ends
+    const tex=tintCanvas(st.end,st.endTint,s.v.c), k=s.t/tex.height, ew=tex.width*k, ang=Math.atan2(s.d[1],s.d[0]);
+    if(s.freeA){ cx.save(); cx.translate(...s.pa); cx.rotate(ang); cx.scale(-1,s.v.f?-1:1); cx.drawImage(tex,-ew,-s.t/2,ew,s.t); cx.restore(); }
+    if(s.freeB){ cx.save(); cx.translate(...s.pb); cx.rotate(ang); if(s.v.f) cx.scale(1,-1); cx.drawImage(tex,-ew,-s.t/2,ew,s.t); cx.restore(); } }
+}
+
+// ---- brush interaction ----
+let wallStroke=null, wallHover=null, wallDiff=null;         // wallStroke = {verts:[[X,Y]], erase, at:[xu,yu]}
+const evtU=e=>{ const w=evtWorld(e); return [w.x/hexW(), w.y/hexH()]; };
+function wallStrokeAdd(v){
+  const p=wallStroke.verts;
+  for(const q of vPath(p[p.length-1],v)){ const prev=p[p.length-2];
+    if(prev&&prev[0]===q[0]&&prev[1]===q[1]) p.pop(); else p.push(q); }   // dragging back takes the last step off
+  draw(); }
+function wallTouch(k){ if(wallDiff&&!wallDiff.has(k)) wallDiff.set(k, walls.has(k)?{...walls.get(k)}:null); markDirty(); }
+function applyWallStroke(st){
+  const cliff=tool==='cliffbrush';
+  const val=cliff?{s:$('cliffStyle').value||'Cliffs · rocky', c:'#ffffff', w:(+$('cliffThick').value)/100}
+                 :{s:$('wallStyle').value||WALL_PLAIN, c:$('wallColor').value, w:(+$('wallThick').value)/100};
+  const flipAll=cliff&&$('cliffLeft').checked, keys=[], dropOf=new Map();
+  const nOf=k=>{ const [c,r,i]=k.split(',').map(Number), [A,B]=wallEdgeVerts(c,r,i), dx=(B[0]-A[0])/4, dy=(B[1]-A[1])/2*HEXAR; return {A,B,mx:(A[0]+B[0])/8,my:(A[1]+B[1])/4,n:[-dy,dx]}; };
+  if(st.verts.length===1){                                 // a click: toggle the edge nearest the click
+    const V=st.verts[0]; let best=null,bd=1e9;
+    for(const N of vNeighbors(...V)){ const mx=(V[0]+N[0])/8-st.at[0], my=((V[1]+N[1])/4-st.at[1])*HEXAR, d=mx*mx+my*my; if(d<bd){ bd=d; best=N; } }
+    const k=best&&wallEdgeKey(V,best); if(k){ keys.push(k); if(walls.has(k)) st.erase=true;
+      const e=nOf(k), side=(st.at[0]-e.mx)*e.n[0]+((st.at[1]-e.my)*HEXAR)*e.n[1]; dropOf.set(k,(side>0?1:0)^(flipAll?1:0)); }   // a click: the side you click is the high side
+  } else for(let j=1;j<st.verts.length;j++){ const P=st.verts[j-1], k=wallEdgeKey(P,st.verts[j]); if(!k) continue; keys.push(k);
+    const e=nOf(k); dropOf.set(k,((e.A[0]===P[0]&&e.A[1]===P[1])?0:1)^(flipAll?1:0)); }   // drag: drop on the right of the stroke
+  wallDiff=new Map(); let n=0;
+  for(const k of keys){ const [c,r,i]=k.split(',').map(Number); if(!wallOnMap(c,r,i)) continue;
+    if(st.erase){ if(walls.has(k)){ wallTouch(k); walls.delete(k); n++; } }
+    else { wallTouch(k); const o={...val}; if(cliff&&dropOf.get(k)) o.f=1; walls.set(k,o); n++; } }
+  if(wallDiff.size){ history.push({walls:wallDiff}); if(history.length>80) history.shift(); }
+  wallDiff=null; draw();
+  if(n) flash((st.erase?(cliff?'Cliff':'Wall')+' removed from ':(cliff?'Cliff':'Wall')+' drawn along ')+n+' hex edge'+(n===1?'':'s'));
+}
+function drawWallStroke(){
+  const P=(X,Y)=>[X/4*hexW()-cam.x, Y/2*hexH()-cam.y];
+  if(isEdgeTool()&&edgeMode!=='draw'&&edgeHoverKeys&&edgeHoverKeys.length){   // what a click would flip / ring
+    ctx.save(); ctx.strokeStyle=edgeMode==='surround'?'rgba(230,199,102,0.95)':/^del/.test(edgeMode)?'rgba(230,80,60,0.95)':'rgba(102,204,255,0.95)'; ctx.lineWidth=Math.max(3,hexW()*0.05); ctx.lineCap='round'; ctx.beginPath();
+    for(const k of edgeHoverKeys){ const [c,r,i]=k.split(',').map(Number), [A,B]=wallEdgeVerts(c,r,i); ctx.moveTo(...P(...A)); ctx.lineTo(...P(...B)); }
+    ctx.stroke(); ctx.restore(); }
+  if(isEdgeTool()&&edgeMode==='draw'&&wallHover&&!wallStroke){ const [x,y]=P(...wallHover); ctx.save(); ctx.fillStyle='rgba(230,199,102,0.95)'; ctx.strokeStyle='rgba(14,23,32,0.9)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(x,y,Math.max(3,hexW()*0.04),0,7); ctx.fill(); ctx.stroke(); ctx.restore(); }
+  if(!wallStroke) return; const p=wallStroke.verts.map(v=>P(...v));
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle=wallStroke.erase?'rgba(220,80,60,0.9)':'rgba(230,199,102,0.9)';
+  ctx.lineWidth=Math.max(3,hexW()*0.06); ctx.beginPath(); ctx.moveTo(...p[0]); for(const q of p.slice(1)) ctx.lineTo(...q); ctx.stroke();
+  ctx.fillStyle=ctx.strokeStyle; for(const q of p){ ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(2.5,hexW()*0.045),0,7); ctx.fill(); }
+  if(tool==='cliffbrush'&&!wallStroke.erase){                // ticks on the side that drops
+    const sg=$('cliffLeft').checked?-1:1, L=hexW()*0.09; ctx.lineWidth=Math.max(2,hexW()*0.025);
+    for(let j=1;j<p.length;j++){ const a=p[j-1], b=p[j], dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, nx=-dy/l*sg, ny=dx/l*sg;
+      for(const f of [0.3,0.7]){ const x=a[0]+dx*f, y=a[1]+dy*f; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+nx*L,y+ny*L); ctx.stroke(); } } }
+  ctx.restore(); }
+
+// ---- Cliff Brush: the Wall Brush's edge drawing with a cliff texture built from the pack's own tiles ----
+// A cliff has a high side and a low side. The texture is drawn high ground on top (texture y=0) and the rock face
+// below, and a wall record's f flag says which side of the edge is low (f=0: the +n side of the edge's A->B
+// direction, f=1: the other). While dragging, the drop is on the RIGHT of the stroke ("Drop to the left" flips it).
+const isEdgeTool=()=>tool==='wallbrush'||tool==='cliffbrush';
+function cliffRand(seed){ let s=seed>>>0; return ()=>{ s=(Math.imul(s,1664525)+1013904223)>>>0; return s/4294967296; }; }
+function tileSample(img,fx0,fy0,fx1,fy1){                  // average colour of a region of a tile image
+  const c=document.createElement('canvas'); c.width=c.height=8; const x=c.getContext('2d',{willReadFrequently:true});
+  x.drawImage(img,img.width*fx0,img.height*fy0,img.width*(fx1-fx0),img.height*(fy1-fy0),0,0,8,8);
+  const d=x.getImageData(0,0,8,8).data; let r=0,g=0,b=0,n=0; for(let i=0;i<d.length;i+=4) if(d[i+3]>200){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; }
+  return n?[r/n,g/n,b/n]:null; }
+const rgb=(c,k=1,a=1)=>'rgba('+Math.round(c[0]*k)+','+Math.round(c[1]*k)+','+Math.round(c[2]*k)+','+a+')';
+// one seamless 1024 px strip; rock = the rocky mountain tile (detail), topCol / faceCol = colours sampled from base tiles
+function makeCliffTex(rockImg,topCol,faceCol,seed){
+  const W=1024,H=160,TAU=Math.PI*2,R=cliffRand(seed), c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
+  const wave=(terms)=>X=>terms.reduce((s,[k,a,p])=>s+a*Math.sin(TAU*k*X/W+p),0);   // integer frequencies wrap seamlessly
+  const ph=()=>R()*TAU, lipW=wave([[5,3,ph()],[11,2,ph()],[23,1.2,ph()]]), botW=wave([[5,7,ph()],[11,6,ph()],[23,4,ph()],[41,3,ph()]]);
+  const lip=X=>H*0.30+lipW(X), bot=X=>H*0.93-Math.abs(botW(X))*1.4;
+  const curve=(f,X0,X1)=>{ for(let X=X0;X<=X1;X+=4) x.lineTo(X,f(X)); };
+  // rock face
+  x.save(); x.beginPath(); x.moveTo(0,lip(0)); curve(lip,0,W); x.lineTo(W,bot(W)); for(let X=W;X>=0;X-=4) x.lineTo(X,bot(X)); x.closePath(); x.clip();
+  x.fillStyle=rgb(faceCol); x.fillRect(0,0,W,H);
+  if(rockImg){ x.globalAlpha=0.35; x.globalCompositeOperation='multiply';            // rock detail, mirror-tiled so it wraps
+    const sw=rockImg.width*0.3, sh=rockImg.height*0.22, sx=rockImg.width*0.35, sy=rockImg.height*0.36, tw=W/4;
+    for(let i=0;i<4;i++){ x.save(); x.translate(i*tw+(i&1?tw:0),0); x.scale(i&1?-1:1,1); x.drawImage(rockImg,sx,sy,sw,sh,0,H*0.2,tw,H*0.85); x.restore(); }
+    x.globalAlpha=1; x.globalCompositeOperation='source-over'; }
+  // irregular rock facets: each lit on its left, in shade on its right, split by leaning inked fissures
+  const xs=[0]; for(let X=90+R()*60;X<W-120;X+=110+R()*170) xs.push(X); xs.push(W);
+  const lean=xs.map((_,i)=>(i===0||i===xs.length-1)?0:(R()-0.5)*90); lean[xs.length-1]=lean[0];
+  for(let i=0;i<xs.length-1;i++){ const a=xs[i], b=xs[i+1], la=lean[i], lb=lean[i+1], mid=(a+b)/2+(R()-0.5)*(b-a)*0.4;
+    x.beginPath(); x.moveTo(a,lip(a)); x.lineTo(mid,lip(mid)); x.lineTo(mid+(la+lb)/2,H); x.lineTo(a+la,H); x.closePath();
+    x.fillStyle='rgba(255,252,240,'+(0.03+R()*0.08)+')'; x.fill();
+    x.beginPath(); x.moveTo(mid,lip(mid)); x.lineTo(b,lip(b)); x.lineTo(b+lb,H); x.lineTo(mid+(la+lb)/2,H); x.closePath();
+    x.fillStyle='rgba(20,16,12,'+(0.04+R()*0.09)+')'; x.fill(); }
+  x.lineCap='round'; x.lineJoin='round';
+  for(let i=1;i<xs.length-1;i++){ const X=xs[i], full=R()<0.5, y0=lip(X)+1, y1=full?H:lip(X)+(H-lip(X))*(0.35+R()*0.3);
+    x.strokeStyle='rgba(14,11,9,0.85)'; x.lineWidth=1.8+R()*1.2; x.beginPath(); x.moveTo(X,y0);
+    x.quadraticCurveTo(X+lean[i]*0.5+(R()-0.5)*8,(y0+y1)/2,X+lean[i]*(y1-y0)/(H-y0),y1); x.stroke(); }
+  for(let i=0;i<9;i++){ const X=20+R()*(W-140), y=lip(X)+(bot(X)-lip(X))*(0.3+R()*0.45), L=40+R()*70;   // a few ledges
+    x.strokeStyle='rgba(14,11,9,0.5)'; x.lineWidth=1.4; x.beginPath(); x.moveTo(X,y); x.quadraticCurveTo(X+L/2,y+(R()-0.5)*5,X+L,y+(R()-0.3)*6); x.stroke(); }
+  const g=x.createLinearGradient(0,H*0.3,0,H); g.addColorStop(0,'rgba(255,250,235,0.12)'); g.addColorStop(0.5,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(10,8,6,0.30)');
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+  x.restore();
+  // high ground: the terrain colour, fading out at the top so it melts into the tile above
+  x.save(); x.beginPath(); x.moveTo(0,0); x.lineTo(W,0); x.lineTo(W,lip(W)); for(let X=W;X>=0;X-=4) x.lineTo(X,lip(X)); x.closePath(); x.clip();
+  const tg=x.createLinearGradient(0,0,0,H*0.30); tg.addColorStop(0,rgb(topCol,1,0)); tg.addColorStop(0.55,rgb(topCol,1,0.85)); tg.addColorStop(1,rgb(topCol,0.92,1));
+  x.fillStyle=tg; x.fillRect(0,0,W,H*0.5); x.restore();
+  // ink outlines, like the tiles' slab edges
+  x.strokeStyle='rgba(12,10,8,0.95)'; x.lineJoin='round'; x.lineWidth=4; x.beginPath(); x.moveTo(-4,lip(-4)); curve(lip,0,W+4); x.stroke();
+  x.lineWidth=3; x.beginPath(); x.moveTo(-4,bot(-4)); curve(bot,0,W+4); x.stroke();
+  return c; }
+async function buildCliffStyles(){
+  const find=re=>tiles.find(t=>re.test(t.base));
+  const rock=find(/^Hex - Mountains, medium \(rocky\)$/i)||find(/^Hex - Mountains, low \(rocky\)$/i)||find(/Mountain.*rocky/i);
+  const bases=[['rocky',find(/^Hex - Base \(rocky\)$/i),[128,126,122]],['grassy',find(/^Hex - Base \(lush\)$/i),[128,148,92]],
+               ['snowy',find(/^Hex - Base \(snowy\)$/i),[222,226,232]],['sandy',find(/^Hex - Base \((desert|sand[a-z]*)\)$/i),[214,188,130]]];
+  await Promise.all([rock,...bases.map(b=>b[1])].filter(Boolean).map(ensureImgP));
+  const rockBase=bases[0][1]&&bases[0][1].img, face=(rockBase&&tileSample(rockBase,0.42,0.42,0.58,0.58))||[128,126,122];
+  const faceCol=face.map(v=>Math.min(255,v*1.02));                        // the cliff face sits in shade
+  bases.forEach(([nm,t,fallback],i)=>{ if(i>2&&!t) return;   // rocky / grassy / snowy always; sandy only if the pack has it
+    const top=(t&&t.img&&tileSample(t.img,0.42,0.42,0.58,0.58))||fallback, name='Cliffs · '+nm;
+    wallStyles.set(name,{name, pack:'Cliffs', img:makeCliffTex(rock&&rock.img,top,nm==='snowy'?face.map(v=>Math.min(255,v*1.1)):faceCol,hash32(name)), end:null, color:'#ffffff', tinted:new Map(), endTint:new Map(), cliff:true}); });
+  refreshWallStyles(); draw(); }
+
+// ---- Wall & cliff brush modes: flip one piece, flip a whole line, surround an area of one tile type ----
+let edgeMode='draw', edgeHoverKeys=null, edgeHoverId='';
+function nearestEdgeKey(at){ const V=nearestVertex(...at); if(!V) return null; let best=null,bd=1e9;
+  for(const N of vNeighbors(...V)){ const mx=(V[0]+N[0])/8-at[0], my=((V[1]+N[1])/4-at[1])*HEXAR, d=mx*mx+my*my; if(d<bd){ bd=d; best=N; } }
+  return best?wallEdgeKey(V,best):null; }
+const edgeKind=v=>{ const st=wallStyles.get(v.s); return ((st&&st.cliff)||/^Cliffs · /.test(v.s))?'cliff':'wall'; };
+function wallRun(k){                                       // every wall (or every cliff) connected to this one
+  const v0=walls.get(k); if(!v0) return []; const kind=edgeKind(v0), seen=new Set([k]), q=[k];
+  while(q.length){ const [c,r,i]=q.pop().split(',').map(Number);
+    for(const V of wallEdgeVerts(c,r,i)) for(const N of vNeighbors(...V)){ const nk=wallEdgeKey(V,N); if(!nk||seen.has(nk)) continue;
+      const v=walls.get(nk); if(v&&edgeKind(v)===kind){ seen.add(nk); q.push(nk); } } }
+  return [...seen]; }
+const tileType=t=>t?t.base.replace(/\s+\d+[a-z]?$/i,''):null;   // "Hex - Plains (lush) 3" -> "Hex - Plains (lush)"
+function sameTypeRegion(c,r,all){
+  const cell=cells.get(c+','+r), ty=cell&&tileType(cell.base); if(!ty) return null; const set=new Set();
+  if(all){ for(const [k,v] of cells) if(tileType(v.base)===ty) set.add(k); return {ty,set}; }
+  const q=[[c,r]]; set.add(c+','+r);
+  while(q.length){ const [a,b]=q.pop(); for(const d of D6){ const n=neighbor(a,b,d); if(!n||!inMap(...n)) continue; const k=n.join(',');
+    if(set.has(k)) continue; const v=cells.get(k); if(v&&tileType(v.base)===ty){ set.add(k); q.push(n); } } }
+  return {ty,set}; }
+function regionBorder(set){                                // edge key -> f, so the drop faces away from the area
+  const out=new Map();
+  for(const k of set){ const [c,r]=k.split(',').map(Number);
+    D6.forEach((d,i)=>{ const n=neighbor(c,r,d); if(!n||!inMap(...n)||set.has(n.join(','))) return;   // no cliff along the map's own edge
+      const ek=i<3?(c+','+r+','+i):(n[0]+','+n[1]+','+(i-3)), [ec,er,ei]=ek.split(',').map(Number), [A,B]=wallEdgeVerts(ec,er,ei);
+      const dx=(B[0]-A[0])/4, dy=(B[1]-A[1])/2*HEXAR, [ox,oy]=hexCtrU(...n), mx=(A[0]+B[0])/8, my=(A[1]+B[1])/4;
+      out.set(ek, ((ox-mx)*(-dy)+((oy-my)*HEXAR)*dx)>0?0:1); }); }
+  return out; }
+function edgeOp(fn){ wallDiff=new Map(); const n=fn(); if(wallDiff.size){ history.push({walls:wallDiff}); if(history.length>80) history.shift(); } wallDiff=null; draw(); return n; }
+function edgeClick(e){
+  const at=evtU(e), cliff=tool==='cliffbrush', noun=cliff?'cliff':'wall';
+  if(edgeMode==='flip1'||edgeMode==='flipline'){
+    const k=nearestEdgeKey(at); if(!k||!walls.has(k)){ flash('Click on a wall or cliff to flip it'); return; }
+    const keys=edgeMode==='flip1'?[k]:wallRun(k);
+    edgeOp(()=>{ for(const kk of keys){ wallTouch(kk); const v=walls.get(kk); if(v.f) delete v.f; else v.f=1; } });
+    edgeHoverId=''; flash(keys.length===1?'Flipped 1 piece':'Flipped '+keys.length+' pieces'); return; }
+  if(edgeMode==='del1'||edgeMode==='delline'){
+    const k=nearestEdgeKey(at); if(!k||!walls.has(k)){ flash('Click on a wall or cliff to delete it'); return; }
+    const keys=edgeMode==='del1'?[k]:wallRun(k);
+    edgeOp(()=>{ for(const kk of keys){ wallTouch(kk); walls.delete(kk); } });
+    edgeHoverId=''; edgeHoverKeys=null; flash(keys.length===1?'Deleted 1 piece':'Deleted '+keys.length+' pieces'); return; }
+  if(edgeMode==='surround'){
+    const h=evtHex(e); if(!h) return; const R=sameTypeRegion(h[0],h[1],e.shiftKey); if(!R){ flash('Click a painted hex'); return; }
+    const border=regionBorder(R.set), erase=e.button===2||$(cliff?'cliffErase':'wallErase').checked, low=$('surroundLow').checked;
+    const val=cliff?{s:$('cliffStyle').value||'Cliffs · rocky', c:'#ffffff', w:(+$('cliffThick').value)/100}
+                   :{s:$('wallStyle').value||WALL_PLAIN, c:$('wallColor').value, w:(+$('wallThick').value)/100};
+    const n=edgeOp(()=>{ let n=0; for(const [k,f] of border){
+      if(erase){ if(walls.has(k)){ wallTouch(k); walls.delete(k); n++; } }
+      else { wallTouch(k); const o={...val}; if(f^(low?1:0)) o.f=1; walls.set(k,o); n++; } } return n; });
+    const nm=R.ty.replace(/^Hex - /,''), hx=R.set.size+' '+nm+' hex'+(R.set.size===1?'':'es');
+    flash(!border.size?('No border to ring around '+hx):erase?('Removed '+n+' '+noun+' piece'+(n===1?'':'s')+' around '+hx):('Ringed '+hx+' with a '+noun+' ('+n+' edges)')); } }
+function edgeHover(e){
+  let keys=null, id='';
+  if(edgeMode==='surround'){ const h=evtHex(e); id='h'+(h?h.join(','):'')+(e.shiftKey?'*':''); if(id===edgeHoverId) return;
+    const R=h&&sameTypeRegion(h[0],h[1],e.shiftKey); keys=R?[...regionBorder(R.set).keys()]:null; }
+  else { const k=nearestEdgeKey(evtU(e)); id='e'+(k||''); if(id===edgeHoverId) return;
+    keys=k&&walls.has(k)?((edgeMode==='flip1'||edgeMode==='del1')?[k]:wallRun(k)):null; }
+  edgeHoverId=id; edgeHoverKeys=keys; draw(); }
 function countTiles(){ let n=0; for(const c of cells.values()) n+=(c.base?1:0)+c.lines.length+c.features.length; return n; }
 function updateStatus(){ const s=$('status'); if(s) s.textContent=cells.size+' hexes · '+countTiles()+' tiles'; }
 
@@ -746,9 +1149,10 @@ function render(){
   if(useLOD()){
     if(lodDirty || !lodCanvas) buildLOD();
     if(lodCanvas) ctx.drawImage(lodCanvas, 0,0,lodCanvas.width,lodCanvas.height, -cam.x,-cam.y, worldW(), worldH());
+    drawWalls(ctx,(x,y)=>[x*hexW()-cam.x,y*hexH()-cam.y],hexW(),null,true);
     if(tmplImg && tmpl.top) drawTemplate();
     if(mode==='export') drawCutsOverlay(null);
-    drawSelection(); drawLasso();
+    drawSelection(); drawLasso(); drawWallStroke();
     return;
   }
   const {c0,c1,r0,r1}=visibleRange();
@@ -763,10 +1167,11 @@ function render(){
       if(c>=c0&&c<=c1&&r>=r0&&r<=r1) add(cell,c,r); }
   }
   drawCellsLayered(ctx,vis,hexW(),imgOnScreen);
+  drawWalls(ctx,(x,y)=>[x*hexW()-cam.x,y*hexH()-cam.y],hexW());
   if(tmplImg && tmpl.top) drawTemplate();
   if(mode==='export') drawCutsOverlay({c0,c1,r0,r1});
   if(showRuler) drawRuler(c0,c1,r0,r1);
-  drawSelection(); drawLasso(); drawRecenterHint(); drawStampGhost(); drawLineStroke();
+  drawSelection(); drawLasso(); drawRecenterHint(); drawStampGhost(); drawLineStroke(); drawWallStroke();
 }
 // ---- LOD colour overview (rebuilt only when the map changes; blitted when zoomed out) ----
 let lodCanvas=null, lodCtx=null;
@@ -814,6 +1219,7 @@ function composeFull(bounds,maxArea,opts){
   for(let c=c0;c<=c1;c++)for(let r=r0;r<=r1;r++){ if(keep && !keep(c,r)) continue; const cell=cells.get(c+','+r);
     if(cell){ const ctr=hexCenter(c,r); vis.push({cell, x:(ctr.x-X0)*s, y:(ctr.y-Y0)*s}); } }
   drawCellsLayered(cx, vis, hexW()*s, t=>t.img||null);
+  drawWalls(cx,(x,y)=>[(x*hexW()-X0)*s,(y*hexH()-Y0)*s],hexW()*s,wallFilter(bounds,keep));
   if(opts.clip && keep) clipToHexes(cx, c0,r0,c1,r1, keep, (c,r)=>{ const p=hexCenter(c,r); return {x:(p.x-X0)*s, y:(p.y-Y0)*s}; }, hexW()*s, hexH()*s);
   return cv;
 }
@@ -875,6 +1281,8 @@ board.addEventListener('mousedown',e=>{
   if(mode==='export') return;                              // no painting / erasing / eyedropper on the Export tab
   if(tool==='fill'){ const w=evtWorld(e); lassoPts=[[w.x,w.y]]; draw(); return; }
   if(tool==='stamp'){ const sh=evtHex(e); if(sh && activeStamp) placeStamp(sh[0],sh[1]); return; }
+  if(isEdgeTool()&&edgeMode!=='draw'){ edgeClick(e); return; }
+  if(isEdgeTool()){ const at=evtU(e), v=nearestVertex(...at); if(!v) return; wallStroke={verts:[v], erase:e.button===2||$(tool==='cliffbrush'?'cliffErase':'wallErase').checked, at}; draw(); return; }
   if(tool==='linebrush'){ const h=evtHex(e); if(!h) return; const fam=$('lineFam').value;
     if(!fam||!lineFamList.has(fam)){ alert('Load the tile folder first (it needs the River and Path tiles).'); return; }
     lineStroke={path:[h], erase:e.button===2||$('lineErase').checked, fam}; draw(); return; }
@@ -888,11 +1296,14 @@ board.addEventListener('mousemove',e=>{
   if(tool==='crop'){ if(selDrag){ const w=evtWorld(e); sel.x1=w.x; sel.y1=w.y; draw(); } return; }
   if(tool==='cut'){ cutMouseMove(e); return; }
   if(tool==='fill'){ if(lassoPts){ const w=evtWorld(e); lassoPts.push([w.x,w.y]); draw(); } return; }
+  if(isEdgeTool()&&edgeMode!=='draw'&&!wallStroke){ edgeHover(e); return; }
+  if(isEdgeTool()){ const v=nearestVertex(...evtU(e)); if(wallStroke){ if(v) wallStrokeAdd(v); } else if(v&&(!wallHover||v[0]!==wallHover[0]||v[1]!==wallHover[1])){ wallHover=v; draw(); } return; }
   if(tool==='linebrush'){ if(lineStroke){ const h=evtHex(e); if(h) lineStrokeAdd(h); } return; }
   if(tool==='stamp'){ const h=evtHex(e); const k=h?h.join(','):''; if(k!==(stampHover?stampHover.join(','):'')){ stampHover=h; draw(); } return; }
   if(tool==='recenter'){ if(painting && recenterSel){ const cell=cells.get(recenterSel.join(',')); if(cell){ const w=evtWorld(e); cell.ox=recenterStart.ox+(w.x-recenterStart.wx)/hexW(); cell.oy=recenterStart.oy+(w.y-recenterStart.wy)/hexW(); draw(); } } return; }
   if(!painting)return; const h=evtHex(e); if(h){ const k=h.join(','); if(strokeSeen.has(k))return; strokeSeen.add(k); tool==='erase'?erase(...h):place(...h);} });
 window.addEventListener('mouseup',e=>{ if(lineStroke){ const st=lineStroke; lineStroke=null; applyLineStroke(st, e.shiftKey?'lake':'spring').catch(err=>{ console.error(err); flash('River brush failed: '+(err.message||err)); }); } });
+window.addEventListener('mouseup',()=>{ if(wallStroke){ const st=wallStroke; wallStroke=null; applyWallStroke(st); } });
 window.addEventListener('mouseup',()=>{
   panning=false;
   if(cutDragV) cutMouseUp();
@@ -901,7 +1312,7 @@ window.addEventListener('mouseup',()=>{
     if(selRange){ const b=rangeBBox(selRange); sel={x0:b.x0,y0:b.y0,x1:b.x1,y1:b.y1}; } else sel=null; draw(); }
   if(lassoPts){ if(lassoPts.length>2 && activeTile){ beginOp(); for(const [c,r] of hexesInPolygon(lassoPts)) place(c,r); commitOp(); } lassoPts=null; draw(); } });
 board.addEventListener('contextmenu',e=>e.preventDefault());
-board.addEventListener('mouseleave',()=>{ if(cutHover){ cutHover=null; draw(); } if(stampHover){ stampHover=null; draw(); } });
+board.addEventListener('mouseleave',()=>{ if(wallHover||edgeHoverKeys){ wallHover=null; edgeHoverKeys=null; edgeHoverId=''; draw(); } if(cutHover){ cutHover=null; draw(); } if(stampHover){ stampHover=null; draw(); } });
 board.addEventListener('dblclick',e=>{ if(tool==='cut'){ finishCutDraft(); return; } if(tool==='recenter'){ const h=evtHex(e); if(h){ const cell=cells.get(h.join(',')); if(cell){ beginOp(); touch(h.join(',')); cell.ox=0; cell.oy=0; commitOp(); draw(); } } } });
 window.addEventListener('keydown',e=>{
   const typing=/INPUT|TEXTAREA|SELECT/.test((document.activeElement&&document.activeElement.tagName)||'');
@@ -916,6 +1327,7 @@ window.addEventListener('keydown',e=>{
   if(e.key==='-'||e.key==='_'){ e.preventDefault(); zoomBy(1/1.2); return; }
   if(e.key==='0'){ e.preventDefault(); zoomFit(); return; }
   if(e.key===' '){ spaceDown=true; return; }
+  if(e.key==='Escape' && wallStroke){ wallStroke=null; draw(); return; }
   if(e.key==='Escape' && lineStroke){ lineStroke=null; draw(); return; }
   if(mode==='export') return;
   if(tool==='stamp'&&(e.key==='m'||e.key==='M')){ mirrorStamp(); return; }
@@ -964,6 +1376,7 @@ $('cropSel').addEventListener('click',()=>{
   for(const [k,v] of cells){ const [c,r]=k.split(',').map(Number);
     if(c>=shiftC&&c<=maxC&&r>=minR&&r<=maxR) nc.set((c-shiftC)+','+(r-minR),v); }
   cells=nc; grid.cols=maxC-shiftC+1; grid.rows=maxR-minR+1;
+  const nw=new Map(); for(const [k,v] of walls){ const [c,r,i]=k.split(',').map(Number), c2=c-shiftC, r2=r-minR; if(wallOnMap(c2,r2,i)) nw.set(c2+','+r2+','+i,v); } walls=nw;
   for(const l of cuts) for(const p of l.pts){ p[0]-=shiftC*0.75; p[1]-=minR; }   // keep cut lines on the same hexes
   cutsChanged();
   $('cols').value=grid.cols; $('rows').value=grid.rows;
@@ -1021,7 +1434,7 @@ $('rows').addEventListener('input',e=>{grid.rows=Math.max(2,+e.target.value||2);
 $('hexSize').addEventListener('input',e=>{ zoomTo(+e.target.value); });
 $('showGrid').addEventListener('change',e=>{showGrid=e.target.checked;draw();});
 $('showRuler').addEventListener('change',e=>{showRuler=e.target.checked;draw();});
-$('clearMap').addEventListener('click',()=>{if(confirm('Remove every placed hex?')){pushFull();cells.clear();draw();}});
+$('clearMap').addEventListener('click',()=>{if(confirm('Remove every placed hex?')){pushFull();cells.clear();walls.clear();draw();}});
 $('tmplOp').addEventListener('input',e=>{tmpl.op=+e.target.value/100;$('vOp').textContent=e.target.value+'%';draw();});
 $('tmplScale').addEventListener('input',e=>{tmpl.scale=+e.target.value/100;$('vScale').textContent=e.target.value+'%';draw();});
 $('tmplX').addEventListener('input',e=>{tmpl.x=+e.target.value;draw();});
@@ -1053,13 +1466,15 @@ function serializeProject(){
   const art={}; for(const n of dict) if(n.startsWith('art:')&&artStore[n.slice(4)]) art[n.slice(4)]=artStore[n.slice(4)].url;
   const cutsOut=cuts.map(l=>({pts:l.pts.map(p=>[r4(p[0]),r4(p[1])]), closed:!!l.closed}));
   return {version:4, app:'falldin-hexmapper 3.2', grid:{...grid}, settings:{tileFill, nativeSize},
-          tmpl:{...tmpl,hasImg:!!tmplImg}, dict, cells:cs, cuts:cutsOut, art};
+          tmpl:{...tmpl,hasImg:!!tmplImg}, dict, cells:cs, cuts:cutsOut, art,
+          walls:[...walls].map(([k,v])=>v.f?[k,v.s,v.c,r4(v.w),1]:[k,v.s,v.c,r4(v.w)])};
 }
 function applyProject(d){
   if(!tiles.length){alert('Load the tile folder first, then open the project.');return;}
   const savedHex=(d.grid&&d.grid.hex)||64;            // old files stored nudges in pixels at this zoom
   Object.assign(grid,d.grid); $('cols').value=grid.cols;$('rows').value=grid.rows;$('hexSize').value=grid.hex;$('vHex').textContent=grid.hex;
   cells.clear();
+  walls=new Map(); for(const w of (Array.isArray(d.walls)?d.walls:[])) if(Array.isArray(w)&&w.length>=4){ const o={s:String(w[1]),c:String(w[2]),w:(+w[3])||0.06}; if(w[4]) o.f=1; walls.set(String(w[0]),o); }
   let missing=0;
   if(d.version>=4){
     const dict=d.dict||[], s=d.settings||{};
@@ -1090,6 +1505,8 @@ function applyProject(d){
     }
   }
   if(missing) setTimeout(()=>flash(missing+' tile(s) in this map are not in the loaded folder'),1500);
+  const wm=new Set([...walls.values()].map(v=>v.s).filter(s=>s!==WALL_PLAIN&&!s.startsWith('Cliffs · ')&&!wallStyles.has(s)));
+  if(wm.size) setTimeout(()=>flash('Walls drawn plain until you load: '+[...wm].join(', ')),3200);
   cuts=Array.isArray(d.cuts)?d.cuts.filter(l=>l&&Array.isArray(l.pts)&&l.pts.length>=2).map(l=>({pts:l.pts.map(p=>[+p[0],+p[1]]),closed:!!l.closed})):[];
   cutDraft=null; cutHistory=[]; cutsVer++; renderPieceList();
   cam.x=0; cam.y=0; markDirty(); draw();
@@ -1306,11 +1723,29 @@ async function runBenchmark(){
 $('benchBtn').addEventListener('click',runBenchmark);
 $('rotL').addEventListener('click',()=>rotBrush(-1));
 $('rotR').addEventListener('click',()=>rotBrush(1));
+$('wallFolder').addEventListener('change',e=>{ const fs=[...e.target.files].filter(f=>/\.(png|webp|jpe?g)$/i.test(f.name)); e.target.value=''; loadWallsFrom(fs); });
+$('wallFiles').addEventListener('change',e=>{ const fs=[...e.target.files]; e.target.value=''; loadWallsFrom(fs); });
+async function loadWallsFrom(fs){ if(!fs.length) return;
+  const before=new Set(wallStyles.keys()); let n=0; flash('Reading wall textures…');
+  try{ for(const f of fs) if(/\.(pck|dungeondraft_pack)$/i.test(f.name)) n+=await loadWallPack(f);
+       n+=await loadWallImages(fs.filter(f=>/\.(png|webp|jpe?g)$/i.test(f.name))); }
+  catch(err){ console.error(err); alert('Could not read walls: '+(err.message||err)); }
+  refreshWallStyles(); const fresh=[...wallStyles.keys()].filter(k=>!before.has(k)).sort(), sel=$('wallStyle');
+  if(fresh.length&&sel.value===WALL_PLAIN){ sel.value=fresh[0]; sel.dispatchEvent(new Event('change')); }
+  flash(n?(n+' wall style'+(n===1?'':'s')+' loaded'):('No wall textures found in '+(fs.length>3?fs.length+' files':fs.map(f=>f.name).join(', ')))); draw(); }
+$('wallStyle').addEventListener('change',()=>{ const st=wallStyles.get($('wallStyle').value); $('wallColor').value=st?st.color:'#9a8f7c'; });
+$('wallThick').addEventListener('input',()=>{ $('vWallThick').textContent=$('wallThick').value+'%'; });
+document.querySelectorAll('#edgeModes button').forEach(b=>b.onclick=()=>{ edgeMode=b.dataset.emode; edgeHoverKeys=null; edgeHoverId='';
+  document.querySelectorAll('#edgeModes button').forEach(x=>x.classList.toggle('active',x===b));
+  if(!isEdgeTool()){ setTool('cliffbrush'); flash('Cliff Brush picked: switch to Wall Brush for walls'); } draw(); });
+$('cliffThick').addEventListener('input',()=>{ $('vCliffThick').textContent=$('cliffThick').value+'%'; });
+buildCliffStyles().catch(e=>console.warn('cliffs',e));
+wallDbLoadAll();
 
 // ---- high-resolution render (swap 72dpi for HD assets of the same name) ----
 $('hdFolder').addEventListener('change',e=>{
   // 300 DPI ships as .webp — accept both, and here prefer the LARGEST copy of each name
-  const files=[...e.target.files].filter(f=>/\.(png|webp)$/i.test(f.name));
+  const files=[...e.target.files].filter(f=>/\.(png|webp)$/i.test(f.name)&&!/(^|\/)Walls and cliffs\//i.test(f.webkitRelativePath||''));   // wall strips are not tiles
   if(!files.length){ alert('No tile images (.png/.webp) found in that folder.'); return; }
   hdFiles={}; hdCache={}; const seen=new Map();
   for(const f of files){
@@ -1371,6 +1806,7 @@ async function buildHD(bounds, opts){
   const order=list.map(({c,r,cell})=>{ const p=ctrFull(c,r); return {cell, x:(p.x-X0)*k, y:(p.y-Y0)*k}; });
   // sizes come from the editing tiles' proportions (DPI-independent), so HD matches the screen exactly
   drawCellsLayered(cx, order, hw, t=>imgs[t.base]||t.img||null);
+  drawWalls(cx,(x,y)=>[(x*hdW-X0)*k,(y*hdH-Y0)*k],hw,wallFilter(bounds,keep));
   if(opts.clip && keep) clipToHexes(cx, c0,r0,c1,r1, keep, (c,r)=>{ const p=ctrFull(c,r); return {x:(p.x-X0)*k, y:(p.y-Y0)*k}; }, hw, hh);
   // your own images have no HD copy: note any that are less detailed than the HD hexes they sit in
   let soft=0, worst=1e9;
@@ -1811,7 +2247,7 @@ Lib.init().then(loadStamps);
 $('resetBtn').addEventListener('click',()=>{
   if(!confirm('Reset the map? This erases every placed hex.')) return;
   if(!confirm('Are you sure? This cannot be undone.')) return;
-  pushFull(); cells.clear(); sel=null; selRange=null; lassoPts=null; brushStep=0;
+  pushFull(); cells.clear(); walls.clear(); sel=null; selRange=null; lassoPts=null; brushStep=0;
   cuts=[]; cutDraft=null; cutHistory=[]; cutsChanged(); const v=$('vRot'); if(v) v.textContent='0°';
   draw(); flash('Map reset');
 });

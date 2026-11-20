@@ -117,8 +117,13 @@ button .ic,.filebtn .ic,a.filebtn .ic{margin-right:0.34em;}
   <div class="panel" id="panel">
     <div class="pgroup">
       <h2>1 · Shape</h2>
-      <p class="hintline" style="margin-bottom:0.5rem;">A piece covers <b>one or more hexes</b>. Use <b>Shape</b> to click or drag hexes in and out of the piece. Painting a hex adds it too.</p>
+      <p class="hintline" style="margin-bottom:0.5rem;">A piece covers <b>one or more hexes</b> around a <b>middle hex</b> (the gold ring). Pick the middle with <b>Set Middle</b>, drag <b>Size</b> to grow the piece around it, then use <b>Shape</b> to click or drag single hexes in and out. Painting a hex adds it too.</p>
+      <div class="ctrl" style="margin-bottom:0.5rem;">
+        <label>Size around the middle <span class="val" id="vSize">1 hex</span></label>
+        <input type="range" id="pieceSize" min="1" max="8" step="1" value="1">
+      </div>
       <div class="tool-btns">
+        <button data-tool="middle"><i class="ic ic-hex"></i>Set Middle</button>
         <button data-tool="shape"><i class="ic ic-hex"></i>Shape</button>
         <button data-tool="paint" class="active"><i class="ic ic-pencil"></i>Paint</button>
         <button data-tool="erase"><i class="ic ic-x"></i>Erase</button>
@@ -216,8 +221,8 @@ button .ic,.filebtn .ic,a.filebtn .ic{margin-right:0.34em;}
       <div class="ctrl"><label>Tile fill <span class="val" id="vFill">200%</span></label><input type="range" id="tileFill" min="80" max="300" value="200"></div>
       <div class="ctrl"><label>Zoom <span class="val" id="vHex">90</span></label><input type="range" id="hexSize" min="30" max="220" value="90"></div>
       <div class="row2">
-        <div class="ctrl"><label>Columns</label><input type="number" id="cols" value="14" min="3" max="60"></div>
-        <div class="ctrl"><label>Rows</label><input type="number" id="rows" value="11" min="3" max="60"></div>
+        <div class="ctrl"><label>Columns</label><input type="number" id="cols" value="14" min="1" max="60"></div>
+        <div class="ctrl"><label>Rows</label><input type="number" id="rows" value="11" min="1" max="60"></div>
       </div>
       <button id="clearWs" class="danger" style="width:100%;">Clear Piece</button>
     </div>
@@ -347,6 +352,25 @@ function hexPath(cx,x,y,w,h){ cx.moveTo(x+w,y);cx.lineTo(x+w/2,y-h);cx.lineTo(x-
    dx / dy / w are in HEX WIDTHS (zoom-proof).
    ============================================================ */
 let foot=new Set(), cells=new Map();
+// mid = the piece's middle hex: it sits under the cursor when the piece is placed, and the piece turns around it
+let mid=null;
+function defaultMid(){ return K(Math.floor(grid.cols/2), Math.floor(grid.rows/2)); }
+function midOK(){ if(!mid||!inGrid(...unK(mid))) mid=defaultMid(); return mid; }
+function hexDist(k1,k2){ const [q1,a1]=FP.toAxial(...unK(k1)), [q2,a2]=FP.toAxial(...unK(k2)), dq=q1-q2, da=a1-a2; return (Math.abs(dq)+Math.abs(da)+Math.abs(dq+da))/2; }
+function sizeCount(n){ return 3*n*(n-1)+1; }                // size 1 = the middle hex, 2 = + one ring (7), 3 = 19 …
+function showSize(n){ $('pieceSize').value=n; $('vSize').textContent=n===1?'1 hex':n+' · up to '+sizeCount(n)+' hexes'; }
+// Make the piece every hex within (n-1) steps of the middle. Hexes outside that are dropped (Ctrl+Z brings them back).
+let sizeHist=false;
+function applySize(n){
+  midOK(); if(!sizeHist){ pushHistory(); sizeHist=true; }
+  const [mq,ma]=FP.toAxial(...unK(mid)), R=n-1, want=new Set(); let clipped=0;
+  for(let dq=-R;dq<=R;dq++) for(let da=Math.max(-R,-dq-R); da<=Math.min(R,-dq+R); da++){
+    const [c,r]=FP.toOffset(mq+dq,ma+da); if(!inGrid(c,r)){ clipped++; continue; } want.add(K(c,r)); }
+  for(const k of [...foot]) if(!want.has(k)) setFoot(k,false);
+  for(const k of want) foot.add(k);
+  showSize(n); refreshFacts(); draw();
+  if(clipped) flash(clipped+' hex'+(clipped===1?'':'es')+' fell outside the workspace. Raise Columns/Rows below for a bigger piece.');
+}
 let tool='paint', layer='base', brushStep=0, sel=null;   // sel = {k, layer, i}
 function mkObj(t,rot){ return {t,rot:rot||0,sc:1,dx:0,dy:0,hue:0,sat:1,flip:false,alpha:1}; }
 function mkArt(id,w){ return {a:id,w:w||1,trim:false,rot:0,sc:1,dx:0,dy:0,hue:0,sat:1,flip:false,alpha:1}; }
@@ -365,9 +389,10 @@ function objSize(o,u){
 
 // ---- undo ----
 let history=[];
-function snap(){ return {foot:[...foot], cells:[...cells].map(([k,c])=>[k,{base:c.base?{...c.base}:null,lines:c.lines.map(o=>({...o})),features:c.features.map(o=>({...o}))}])}; }
+function snap(){ return {mid, gc:grid.cols, gr:grid.rows, foot:[...foot], cells:[...cells].map(([k,c])=>[k,{base:c.base?{...c.base}:null,lines:c.lines.map(o=>({...o})),features:c.features.map(o=>({...o}))}])}; }
 function pushHistory(){ history.push(snap()); if(history.length>80) history.shift(); }
-function undo(){ if(!history.length) return; const s=history.pop(); foot=new Set(s.foot); cells=new Map(s.cells); sel=null; syncObjUI(); refreshFacts(); draw(); }
+function undo(){ if(!history.length) return; const s=history.pop(); if(s.mid) mid=s.mid;
+  if(s.gc&&(s.gc!==grid.cols||s.gr!==grid.rows)){ grid.cols=s.gc; grid.rows=s.gr; $('cols').value=s.gc; $('rows').value=s.gr; centreView(); } foot=new Set(s.foot); cells=new Map(s.cells); sel=null; syncObjUI(); refreshFacts(); draw(); }
 
 /* ---- shape / paint / erase ---- */
 function setFoot(k,on){
@@ -431,9 +456,23 @@ function paintPiece(cx,u,ox,oy,withSurround){
   }
   list.sort((a,b)=>(a.y-b.y)||(a.x-b.x));
   const sur=surroundTile?mkObj(surroundTile,0):null;
-  for(const it of list){ if(!it.inF){ drawObj(cx,sur,it.x,it.y,u); } else if(it.cell&&it.cell.base) drawObj(cx,it.cell.base,it.x,it.y,u); }
-  for(const it of list) if(it.inF&&it.cell) for(const o of it.cell.lines) drawObj(cx,o,it.x,it.y,u);
-  for(const it of list) if(it.inF&&it.cell) for(const o of it.cell.features) drawObj(cx,o,it.x,it.y,u);
+  // Same rule as the map tool, back to front: 1. terrain; 2. rivers/paths kept inside their own hex, so they run
+  // over a raised edge poking up from the tile below; 3. features kept off the terrain of the hexes below (S, SE, SW).
+  // Your own images are not clipped (a piece's art may span several hexes on purpose).
+  const H=u*HEXAR, byK=new Map(list.map(it=>[it.k,it]));
+  const solid=k=>{ const it=byK.get(k); return !!it&&(it.inF?!!(it.cell&&it.cell.base):!!sur); };
+  const hexP=(x,y,g)=>{ const w=u/2+g, h=H/2+g; cx.moveTo(x+w,y); cx.lineTo(x+w/2,y-h); cx.lineTo(x-w/2,y-h); cx.lineTo(x-w,y); cx.lineTo(x-w/2,y+h); cx.lineTo(x+w/2,y+h); cx.closePath(); };
+  for(const it of list){ if(!it.inF) drawObj(cx,sur,it.x,it.y,u); else if(it.cell&&it.cell.base) drawObj(cx,it.cell.base,it.x,it.y,u); }
+  for(const it of list){ if(!it.inF||!it.cell||!it.cell.lines.length) continue;
+    for(const o of it.cell.lines){
+      if(o.a!==undefined){ drawObj(cx,o,it.x,it.y,u); continue; }
+      cx.save(); cx.beginPath(); hexP(it.x,it.y,1); cx.clip(); drawObj(cx,o,it.x,it.y,u); cx.restore(); } }
+  for(const it of list){ if(!it.inF||!it.cell||!it.cell.features.length) continue;
+    const [c,r]=unK(it.k), below=['S','SE','SW'].map(d=>neighbor(c,r,d)).filter(nb=>nb&&solid(K(...nb)))
+      .map(nb=>byK.get(K(...nb)));
+    for(const o of it.cell.features){
+      if(o.a!==undefined||!below.length){ drawObj(cx,o,it.x,it.y,u); continue; }
+      cx.save(); cx.beginPath(); cx.rect(-1e7,-1e7,2e7,2e7); for(const b of below) hexP(b.x,b.y,-0.5); cx.clip('evenodd'); drawObj(cx,o,it.x,it.y,u); cx.restore(); } }
 }
 function render(){
   ctx.clearRect(0,0,board.width,board.height); ctx.fillStyle='#0c141c'; ctx.fillRect(0,0,board.width,board.height);
@@ -453,6 +492,12 @@ function render(){
       for(const d of DIR6){ const nb=neighbor(c,r,d); if(nb&&foot.has(K(...nb))) continue;
         const [[ax,ay],[bx,by]]=EDGE[d]; ctx.moveTo(p.x-cam.x+ax*u, p.y-cam.y+ay*2*h); ctx.lineTo(p.x-cam.x+bx*u, p.y-cam.y+by*2*h); } }
     ctx.stroke(); ctx.restore();
+  }
+  if(mid){                                                             // the middle hex: a gold ring with a dark edge so it shows on any tile
+    const p=hexCenter(...unK(mid)), x=p.x-cam.x, y=p.y-cam.y, rr=Math.max(6,u*0.13);
+    ctx.save(); ctx.lineWidth=5; ctx.strokeStyle='rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.arc(x,y,rr,0,Math.PI*2); ctx.stroke();
+    ctx.lineWidth=2.5; ctx.strokeStyle='rgba(230,199,102,1)'; ctx.stroke();
+    ctx.fillStyle='rgba(230,199,102,1)'; ctx.beginPath(); ctx.arc(x,y,Math.max(2,rr*0.28),0,Math.PI*2); ctx.fill(); ctx.restore();
   }
   const o=selObj();
   if(tool==='select' && o){ const b=objBox(sel.k,o); if(b){ ctx.save(); ctx.strokeStyle='#66ccff'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
@@ -592,8 +637,8 @@ function thumbnail(maxSide){
 }
 function buildPiece(name){
   if(!foot.size) return null;
-  // anchor = the piece hex nearest the shape's centre, so the cursor sits in the middle when placing
-  const b=footBox(), anchor=nearestFoot(b.cx,b.cy), [aq,aa]=FP.toAxial(...unK(anchor));
+  // anchor = the middle hex you chose: it sits under the cursor when placing, and the piece turns around it
+  const b=footBox(), anchor=(mid&&inGrid(...unK(mid)))?mid:nearestFoot(b.cx,b.cy), [aq,aa]=FP.toAxial(...unK(anchor));
   const art={}, out=[];
   const conv=(o,k)=>{
     if(o.a!==undefined){
@@ -631,6 +676,8 @@ async function loadPiece(st){
     const cell=emptyCell(); cell.base=pc.base?conv(pc.base):null; cell.lines=pc.lines.map(conv).filter(Boolean); cell.features=pc.features.map(conv).filter(Boolean);
     if(cell.base||cell.lines.length||cell.features.length) cells.set(k,cell);
   }
+  mid=K(...FP.toOffset(cq,ca));                               // the piece's anchor is its middle
+  let far=0; for(const k of foot) far=Math.max(far,hexDist(k,mid)); showSize(Math.min(8,far+1));
   $('pieceName').value=P.name||''; centreView(); syncObjUI(); refreshFacts(); draw();
   if(missing) flash(missing+' part(s) need tiles that are not loaded — load the tile folder first');
 }
@@ -719,7 +766,8 @@ $('libCopy').addEventListener('click',async()=>{
    ============================================================ */
 function flash(msg){ const s=$('status'); clearTimeout(flash._t); if(!flash._old) flash._old=s.textContent;
   s.textContent=msg; s.style.color='var(--gold)'; flash._t=setTimeout(()=>{ s.style.color=''; s.textContent=flash._old; flash._old=null; },2200); }
-const HINTS={shape:'Shape: click or drag hexes to add them to the piece; start on a piece hex to remove instead.',
+const HINTS={middle:'Set Middle: click the hex the piece is centred on. It sits under the cursor when you place the piece, and the piece turns around it.',
+  shape:'Shape: click or drag hexes to add them to the piece; start on a piece hex to remove instead.',
   paint:'Paint: pick a tile on the left, then click or drag. Right-click erases.',
   erase:'Erase: removes the top item of the active layer.',
   select:'Select: click anything in the piece to adjust it. Drag moves, scroll resizes.',
@@ -733,7 +781,8 @@ function rotBrush(d){ brushStep=((brushStep+d)%6+6)%6; $('vRot').textContent=(br
 $('rotL').onclick=()=>rotBrush(-1); $('rotR').onclick=()=>rotBrush(1);
 function refreshFacts(){
   const n=foot.size; let filled=0; for(const k of foot){ const c=cells.get(k); if(c&&(c.base||c.lines.length||c.features.length)) filled++; }
-  $('shapeFacts').innerHTML=n?('Piece: <b>'+n+' hex'+(n===1?'':'es')+'</b> · '+filled+' filled'):'No hexes in the piece yet.';
+  $('shapeFacts').innerHTML=n?('Piece: <b>'+n+' hex'+(n===1?'':'es')+'</b> · '+filled+' filled'
+    +(mid&&!foot.has(mid)?'<br><span style="color:#e0a070;">The middle hex is not part of the piece. That works, but the cursor will sit outside it when placing.</span>':'')):'No hexes in the piece yet.';
 }
 function setTileFill(v){ tileFill=v; $('tileFill').value=Math.round(v*100); $('vFill').textContent=Math.round(v*100)+'%'; }
 function setNative(v){ nativeSize=!!v; $('nativeSize').checked=nativeSize; }
@@ -744,8 +793,32 @@ $('tileFill').addEventListener('input',e=>{ tileFill=+e.target.value/100; $('vFi
 function zoomTo(v,ax,ay){ v=Math.max(30,Math.min(220,v)); if(ax===undefined){ ax=board.width/2; ay=board.height/2; }
   const k=v/grid.hex; cam.x=(cam.x+ax)*k-ax; cam.y=(cam.y+ay)*k-ay; grid.hex=v; $('hexSize').value=Math.round(v); $('vHex').textContent=Math.round(v); draw(); }
 $('hexSize').addEventListener('input',e=>zoomTo(+e.target.value));
-$('cols').addEventListener('change',e=>{ grid.cols=Math.max(3,Math.min(60,+e.target.value||3)); centreView(); draw(); });
-$('rows').addEventListener('change',e=>{ grid.rows=Math.max(3,Math.min(60,+e.target.value||3)); centreView(); draw(); });
+// The workspace can be as small as 1×1. Shrinking it drops piece hexes that no longer fit (Ctrl+Z brings them back),
+// so what you see is exactly what gets saved.
+function setWorkspace(cols,rows){
+  const c=Math.max(1,Math.min(60,Math.round(cols)||1)), r=Math.max(1,Math.min(60,Math.round(rows)||1));
+  $('cols').value=c; $('rows').value=r; if(c===grid.cols&&r===grid.rows) return;
+  pushHistory();
+  if(c<grid.cols||r<grid.rows){                      // shrinking: first slide the piece (and its middle) into the top-left corner
+    // move in hex coordinates (not plain column/row numbers), so the shape stays exactly the same
+    const keys=[...foot,mid].filter(Boolean);
+    if(keys.length){
+      let c0=1e9; for(const k of keys) c0=Math.min(c0,unK(k)[0]);
+      const step1=k=>{ const [q,a]=FP.toAxial(...unK(k)); return FP.toOffset(q-c0,a); };       // leftmost hex → column 0
+      let r0=1e9; for(const k of keys) r0=Math.min(r0,step1(k)[1]);
+      const mv=k=>{ const [c2,r2]=step1(k); return K(c2,r2-r0); };                               // topmost hex → row 0
+      foot=new Set([...foot].map(mv)); cells=new Map([...cells].map(([k,v])=>[mv(k),v])); if(mid) mid=mv(mid); if(sel) sel={...sel,k:mv(sel.k)};
+    }
+  }
+  const gone=[...foot].filter(k=>{ const [kc,kr]=unK(k); return kc>=c||kr>=r; });
+  grid.cols=c; grid.rows=r; for(const k of gone) setFoot(k,false);
+  midOK(); centreView(); syncObjUI(); refreshFacts(); draw();
+  if(gone.length) flash(gone.length+' hex'+(gone.length===1?'':'es')+' outside the smaller workspace removed (Ctrl+Z brings them back)');
+}
+$('cols').addEventListener('change',e=>setWorkspace(+e.target.value,grid.rows));
+$('rows').addEventListener('change',e=>setWorkspace(grid.cols,+e.target.value));
+$('pieceSize').addEventListener('input',e=>applySize(+e.target.value));
+$('pieceSize').addEventListener('change',()=>{ sizeHist=false; });       // one undo step per slider drag
 $('showGrid').addEventListener('change',e=>{ showGrid=e.target.checked; draw(); });
 $('showOutline').addEventListener('change',e=>{ showOutline=e.target.checked; draw(); });
 $('showSurround').addEventListener('change',e=>{ showSurround=e.target.checked; draw(); });
@@ -753,7 +826,7 @@ function setSurround(t){ surroundTile=t; $('surroundName').textContent=t?t.base.
 $('useSurround').addEventListener('click',()=>{ if(!activeTile){ alert('Pick a tile in the palette first.'); return; } setSurround(activeTile); });
 $('clearWs').addEventListener('click',()=>{ if(!foot.size) return; if(!confirm('Clear the whole piece?')) return; pushHistory(); foot=new Set(); cells=new Map(); sel=null; syncObjUI(); refreshFacts(); draw(); });
 $('newPiece').addEventListener('click',()=>{ if(foot.size && !confirm('Start a new piece? Unsaved changes to this one are lost (Ctrl+Z brings them back).')) return;
-  pushHistory(); foot=new Set(); cells=new Map(); sel=null; $('pieceName').value=''; editing=null; syncObjUI(); refreshFacts(); draw(); });
+  pushHistory(); foot=new Set(); cells=new Map(); sel=null; mid=defaultMid(); showSize(1); $('pieceName').value=''; editing=null; syncObjUI(); refreshFacts(); draw(); });
 
 /* ---- palette ---- */
 function buildCatTabs(){ const wrap=$('catTabs'); wrap.innerHTML='';
@@ -795,6 +868,9 @@ board.addEventListener('mousedown',e=>{
   }
   const h=evtHex(e); if(!h) return; const k=K(...h);
   pushHistory(); painting=true; strokeSeen=new Set([k]);
+  if(tool==='middle'){ mid=k; if(!foot.size) foot.add(k); painting=false;
+    let far=0; for(const f of foot) far=Math.max(far,hexDist(f,mid)); showSize(Math.min(8,far+1));
+    refreshFacts(); draw(); return; }
   if(tool==='shape'){ shapeMode=foot.has(k)?'remove':'add'; setFoot(k,shapeMode==='add'); }
   else if(e.button===2||tool==='erase') erase(...h);
   else place(...h);
@@ -839,7 +915,7 @@ function centreView(){ cam.x=(worldW()-board.width)/2; cam.y=(worldH()-board.hei
 function fitBoard(){ board.width=stage.clientWidth||820; board.height=stage.clientHeight||620; centreView(); draw(); }
 window.addEventListener('resize',fitBoard);
 if(window.ResizeObserver) new ResizeObserver(fitBoard).observe(stage);
-setTool('paint'); refreshFacts(); fitBoard(); Lib.init().then(refreshLib);
+mid=defaultMid(); setTool('paint'); refreshFacts(); fitBoard(); Lib.init().then(refreshLib);
 </script>
 </body>
 </html>
